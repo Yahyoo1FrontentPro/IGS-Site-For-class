@@ -6,6 +6,8 @@ import {
   AppUserSummary,
   ClassSchedule,
   HubDataset,
+  LeaderElection,
+  LeaderVote,
   PointLog,
   Student,
   Subject,
@@ -37,6 +39,8 @@ export interface LocalStoreData {
   weeks: Week[];
   pointLogs: PointLog[];
   schedules: ClassSchedule[];
+  elections: LeaderElection[];
+  votes: LeaderVote[];
 }
 
 const STORE_FILE_PATH = path.join(
@@ -76,6 +80,8 @@ function createInitialStore(): LocalStoreData {
     weeks: seed.weeks,
     pointLogs: [],
     schedules: [],
+    elections: [],
+    votes: [],
   };
 }
 
@@ -95,6 +101,12 @@ export function readLocalStore(): LocalStoreData {
     }
     if (!Array.isArray(parsed.schedules)) {
       parsed.schedules = [];
+    }
+    if (!Array.isArray(parsed.elections)) {
+      parsed.elections = [];
+    }
+    if (!Array.isArray(parsed.votes)) {
+      parsed.votes = [];
     }
     return parsed;
   } catch {

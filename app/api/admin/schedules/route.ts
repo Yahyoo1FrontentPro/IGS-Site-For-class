@@ -89,23 +89,19 @@ export async function POST(req: NextRequest) {
         .select("*")
         .single();
 
-      if (error || !created) {
-        return NextResponse.json(
-          { error: error?.message ?? "Failed to save schedule." },
-          { status: 500 }
-        );
+      if (!error && created) {
+        return NextResponse.json({
+          schedule: {
+            id: String(created.id),
+            title: String(created.title),
+            image_url: (created.image_url as string | null) ?? null,
+            entries: Array.isArray(created.entries) ? created.entries : [],
+            is_active: Boolean(created.is_active),
+            created_at: String(created.created_at),
+          } as ClassSchedule,
+        });
       }
-
-      return NextResponse.json({
-        schedule: {
-          id: String(created.id),
-          title: String(created.title),
-          image_url: (created.image_url as string | null) ?? null,
-          entries: Array.isArray(created.entries) ? created.entries : [],
-          is_active: Boolean(created.is_active),
-          created_at: String(created.created_at),
-        } as ClassSchedule,
-      });
+      // If schedules table hasn't been created in Supabase yet, fall through to local store
     }
 
     const store = readLocalStore();

@@ -28,7 +28,7 @@ export async function POST(req: NextRequest) {
 
     if (isSupabaseAdminConfigured()) {
       const supabase = getSupabaseAdminClient();
-      const { data, error } = await supabase
+      let { data, error } = await supabase
         .from("students")
         .insert({
           name,
@@ -36,6 +36,26 @@ export async function POST(req: NextRequest) {
         })
         .select("id, name, is_active, created_at")
         .single();
+
+      // Backward compatibility if legacy team_id column still exists on students in Supabase
+      if (error && error.message.includes("team_id")) {
+        const { data: firstTeam } = await supabase
+          .from("teams")
+          .select("id")
+          .limit(1)
+          .maybeSingle();
+        const retry = await supabase
+          .from("students")
+          .insert({
+            name,
+            team_id: firstTeam?.id,
+            is_active: true,
+          })
+          .select("id, name, is_active, created_at")
+          .single();
+        data = retry.data;
+        error = retry.error;
+      }
 
       if (error || !data) {
         return NextResponse.json(

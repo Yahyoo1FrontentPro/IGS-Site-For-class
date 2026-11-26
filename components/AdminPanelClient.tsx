@@ -29,6 +29,7 @@ import {
   Undo2,
   UserPlus,
   Users,
+  Vote,
   X,
   Zap,
 } from "lucide-react";
@@ -36,6 +37,7 @@ import {
   AppUserSummary,
   ClassSchedule,
   DayOfWeek,
+  ElectionState,
   HubDataset,
   PointCategory,
   PointLog,
@@ -47,12 +49,16 @@ import {
 } from "@/types";
 import { DAYS_OF_WEEK, formatShortDate, getTodayDateISO } from "@/lib/calculations";
 import { ThemeToggle } from "@/components/ThemeToggle";
+import { AdminElectionPanel } from "@/components/AdminElectionPanel";
+
+type AdminTab = "daily" | "schedules" | "voting" | "manage";
 
 interface AdminPanelClientProps {
   initialDataset: HubDataset;
   currentUser: SessionUser;
   initialAppUsers?: AppUserSummary[];
-  initialTab?: "daily" | "schedules" | "manage";
+  initialTab?: AdminTab;
+  initialElection: ElectionState;
 }
 
 interface ToastMessage {
@@ -118,6 +124,7 @@ export function AdminPanelClient({
   currentUser,
   initialAppUsers = [],
   initialTab = "daily",
+  initialElection,
 }: AdminPanelClientProps) {
   const router = useRouter();
 
@@ -137,9 +144,7 @@ export function AdminPanelClient({
     initialDataset.schedules
   );
 
-  const [activeTab, setActiveTab] = useState<"daily" | "schedules" | "manage">(
-    initialTab
-  );
+  const [activeTab, setActiveTab] = useState<AdminTab>(initialTab);
 
   const activeWeek = useMemo(
     () => weeks.find((w) => w.is_active) ?? weeks[weeks.length - 1],
@@ -888,6 +893,18 @@ export function AdminPanelClient({
               </button>
               <button
                 type="button"
+                onClick={() => setActiveTab("voting")}
+                className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-bold transition sm:text-sm ${
+                  activeTab === "voting"
+                    ? "bg-white text-navy-900 shadow-sm dark:bg-blue-600 dark:text-white"
+                    : "text-slate-600 hover:text-slate-900 dark:text-slate-400"
+                }`}
+              >
+                <Vote className="h-3.5 w-3.5" />
+                Voting
+              </button>
+              <button
+                type="button"
                 onClick={() => setActiveTab("manage")}
                 className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-bold transition sm:text-sm ${
                   activeTab === "manage"
@@ -1373,6 +1390,11 @@ export function AdminPanelClient({
               </div>
             </section>
           </div>
+        )}
+
+        {/* TAB: CLASS LEADER VOTING */}
+        {activeTab === "voting" && (
+          <AdminElectionPanel initialState={initialElection} />
         )}
 
         {/* TAB 3: MANAGEMENT */}

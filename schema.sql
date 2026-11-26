@@ -12,6 +12,8 @@ DROP TABLE IF EXISTS public.subjects CASCADE;
 DROP TABLE IF EXISTS public.weeks CASCADE;
 DROP TABLE IF EXISTS public.teams CASCADE;
 DROP TABLE IF EXISTS public.schedules CASCADE;
+DROP TABLE IF EXISTS public.leader_votes CASCADE;
+DROP TABLE IF EXISTS public.leader_elections CASCADE;
 DROP TABLE IF EXISTS public.app_users CASCADE;
 
 -- 1. APP USERS TABLE
@@ -92,6 +94,28 @@ CREATE TABLE public.schedules (
 );
 
 CREATE UNIQUE INDEX idx_schedules_single_active ON public.schedules(is_active) WHERE (is_active = TRUE);
+
+-- 7. CLASS LEADER ELECTIONS & VOTES TABLES (Admin-Controlled Whiteboard Voting)
+CREATE TABLE public.leader_elections (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  title TEXT NOT NULL DEFAULT 'Weekly Class Leader Vote',
+  current_leader TEXT NOT NULL DEFAULT 'Yahyo',
+  status TEXT NOT NULL DEFAULT 'open' CHECK (status IN ('open', 'closed')),
+  winner TEXT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  closed_at TIMESTAMPTZ
+);
+
+CREATE TABLE public.leader_votes (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  election_id UUID NOT NULL REFERENCES public.leader_elections(id) ON DELETE CASCADE,
+  voter_username_lower TEXT NOT NULL,
+  candidate TEXT NOT NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  CONSTRAINT leader_votes_one_vote_per_user UNIQUE (election_id, voter_username_lower)
+);
+
+CREATE INDEX idx_leader_votes_election_id ON public.leader_votes(election_id);
 
 -- ============================================================================
 -- TABLE & SCHEMA GRANTS FOR SUPABASE API ROLES

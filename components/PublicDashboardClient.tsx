@@ -25,8 +25,9 @@ import {
   Trophy,
   User,
   UserPlus,
+  Vote,
 } from "lucide-react";
-import { HubDataset, SessionUser } from "@/types";
+import { ElectionState, HubDataset, SessionUser } from "@/types";
 import {
   buildActivityFeed,
   calculateMostImproved,
@@ -40,16 +41,19 @@ import {
 import { SoloRaceChart } from "@/components/TeamRaceChart";
 import { WEEKLY_PRIZES, getPrizeForPlace } from "@/lib/prizes";
 import { ScheduleViewer } from "@/components/ScheduleViewer";
+import { LeaderElectionCard } from "@/components/LeaderElectionCard";
 import { ThemeToggle } from "@/components/ThemeToggle";
 
 interface PublicDashboardClientProps {
   dataset: HubDataset;
   sessionUser?: SessionUser | null;
+  electionState: ElectionState;
 }
 
 export function PublicDashboardClient({
   dataset,
   sessionUser = null,
+  electionState,
 }: PublicDashboardClientProps) {
   const router = useRouter();
   const [isRefreshing, startTransition] = useTransition();
@@ -232,6 +236,18 @@ export function PublicDashboardClient({
             </button>
 
             <Link
+              href="/vote"
+              className={`inline-flex items-center gap-1.5 rounded-xl border px-3 py-2 text-xs font-semibold shadow-sm transition sm:text-sm ${
+                electionState.openElection
+                  ? "border-emerald-300 bg-emerald-50 text-emerald-800 hover:bg-emerald-100 dark:border-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300"
+                  : "border-slate-200 bg-white text-slate-700 hover:bg-slate-100 dark:border-slate-700 dark:bg-navy-800 dark:text-slate-200 dark:hover:bg-navy-700"
+              }`}
+            >
+              <Vote className="h-4 w-4 text-indigo-600 dark:text-indigo-400" />
+              <span>Vote{electionState.openElection ? " (OPEN)" : ""}</span>
+            </Link>
+
+            <Link
               href="/schedule"
               className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 shadow-sm transition hover:bg-slate-100 sm:text-sm dark:border-slate-700 dark:bg-navy-800 dark:text-slate-200 dark:hover:bg-navy-700"
             >
@@ -340,6 +356,9 @@ export function PublicDashboardClient({
             </span>
           </div>
         </div>
+
+        {/* Class Leader Vote (only active when admin opens it) */}
+        <LeaderElectionCard initialState={electionState} sessionUser={sessionUser} />
 
         {/* SECTION 1: LIVE SOLO STANDINGS RACE & TOP 3 PODIUM */}
         <section className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm sm:p-7 dark:border-slate-800 dark:bg-navy-900">

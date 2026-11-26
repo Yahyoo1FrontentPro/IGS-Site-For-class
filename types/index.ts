@@ -132,3 +132,42 @@ export interface ActivityFeedItem {
   date: string;
   createdAt: string;
 }
+
+export type ElectionStatus = "open" | "closed";
+
+export interface LeaderElection {
+  id: string;
+  title: string;
+  current_leader: string;
+  status: ElectionStatus;
+  winner: string | null;
+  created_at: string;
+  closed_at: string | null;
+}
+
+export interface LeaderVote {
+  id: string;
+  election_id: string;
+  voter_username_lower: string;
+  candidate: string;
+  created_at: string;
+}
+
+export interface ElectionResult {
+  candidate: string;
+  label: string;
+  votes: number;
+}
+
+export interface ElectionState {
+  openElection: LeaderElection | null;
+  openTotalVotes: number;
+  /** Live results of the open vote — only filled for admins. */
+  openResults: ElectionResult[] | null;
+  hasVoted: boolean;
+  myVote: string | null;
+  latestClosed: LeaderElection | null;
+  latestClosedResults: ElectionResult[];
+  history: LeaderElection[];
+  candidates: string[];
+}

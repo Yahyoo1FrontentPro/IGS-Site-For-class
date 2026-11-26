@@ -1,4 +1,5 @@
 import { getSessionUser } from "@/lib/auth";
+import { getElectionState } from "@/lib/elections";
 import { readLocalStore, toUserSummary } from "@/lib/local-store";
 import {
   fetchHubDataset,
@@ -41,17 +42,23 @@ export default async function AdminPage({
   const initialTab =
     searchParams?.tab === "schedules"
       ? "schedules"
+      : searchParams?.tab === "voting"
+      ? "voting"
       : searchParams?.tab === "manage"
       ? "manage"
       : "daily";
 
-  const dataset = await fetchHubDataset();
+  const [dataset, initialElection] = await Promise.all([
+    fetchHubDataset(),
+    getElectionState(sessionUser),
+  ]);
   return (
     <AdminPanelClient
       initialDataset={dataset}
       currentUser={sessionUser}
       initialAppUsers={appUsers}
       initialTab={initialTab}
+      initialElection={initialElection}
     />
   );
 }

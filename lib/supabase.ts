@@ -101,16 +101,20 @@ export async function fetchHubDataset(): Promise<HubDataset> {
       return getLocalHubDataset();
     }
 
-    const parsedSchedules: ClassSchedule[] = (schedulesRes.data ?? []).map(
-      (row: Record<string, unknown>) => ({
-        id: String(row.id),
-        title: String(row.title ?? "Class Schedule"),
-        image_url: typeof row.image_url === "string" ? row.image_url : null,
-        entries: Array.isArray(row.entries) ? (row.entries as ClassSchedule["entries"]) : [],
-        is_active: Boolean(row.is_active),
-        created_at: String(row.created_at ?? ""),
-      })
-    );
+    const parsedSchedules: ClassSchedule[] =
+      !schedulesRes.error && schedulesRes.data
+        ? schedulesRes.data.map((row: Record<string, unknown>) => ({
+            id: String(row.id),
+            title: String(row.title ?? "Class Schedule"),
+            image_url:
+              typeof row.image_url === "string" ? row.image_url : null,
+            entries: Array.isArray(row.entries)
+              ? (row.entries as ClassSchedule["entries"])
+              : [],
+            is_active: Boolean(row.is_active),
+            created_at: String(row.created_at ?? ""),
+          }))
+        : getLocalHubDataset().schedules;
 
     return {
       students: (studentsRes.data ?? []) as Student[],

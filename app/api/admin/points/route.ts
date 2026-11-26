@@ -103,7 +103,7 @@ export async function POST(req: NextRequest) {
         }
       }
 
-      const { data: insertedLog, error: insertErr } = await supabase
+      let { data: insertedLog, error: insertErr } = await supabase
         .from("point_logs")
         .insert({
           student_id: student.id,
@@ -116,6 +116,40 @@ export async function POST(req: NextRequest) {
         })
         .select("id, student_id, subject_id, week_id, points, category, reason, date, created_at")
         .single();
+
+      // Backward compatibility if legacy team_id column still exists on point_logs in Supabase
+      if (insertErr && insertErr.message.includes("team_id")) {
+        const { data: legacyStudent } = await supabase
+          .from("students")
+          .select("team_id")
+          .eq("id", student.id)
+          .maybeSingle();
+        let fallbackTeamId = legacyStudent?.team_id;
+        if (!fallbackTeamId) {
+          const { data: firstTeam } = await supabase
+            .from("teams")
+            .select("id")
+            .limit(1)
+            .maybeSingle();
+          fallbackTeamId = firstTeam?.id;
+        }
+        const retry = await supabase
+          .from("point_logs")
+          .insert({
+            student_id: student.id,
+            team_id: fallbackTeamId,
+            subject_id: effectiveSubjectId,
+            week_id: weekId,
+            points,
+            category,
+            reason,
+            date,
+          })
+          .select("id, student_id, subject_id, week_id, points, category, reason, date, created_at")
+          .single();
+        insertedLog = retry.data;
+        insertErr = retry.error;
+      }
 
       if (insertErr || !insertedLog) {
         return NextResponse.json(
