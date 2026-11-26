@@ -52,6 +52,7 @@ import { ThemeToggle } from "@/components/ThemeToggle";
 import { AdminElectionPanel } from "@/components/AdminElectionPanel";
 import { AdminAbsencesPanel } from "@/components/AdminAbsencesPanel";
 import { AdminRolesPanel } from "@/components/AdminRolesPanel";
+import { useHideOnMobileScroll } from "@/lib/useHideOnMobileScroll";
 
 type AdminTab = "daily" | "schedules" | "voting" | "absences" | "manage";
 
@@ -131,6 +132,7 @@ export function AdminPanelClient({
   initialAbsences = [],
 }: AdminPanelClientProps) {
   const router = useRouter();
+  const hideHeaderOnMobile = useHideOnMobileScroll();
 
   const [appUsers, setAppUsers] = useState<AppUserSummary[]>(initialAppUsers);
   const [absences, setAbsences] = useState<AbsenceReport[]>(initialAbsences);
@@ -824,7 +826,11 @@ export function AdminPanelClient({
 
   return (
     <div className="min-h-screen bg-slate-50 pb-20 dark:bg-navy-950">
-      <header className="sticky top-0 z-30 border-b border-slate-200 bg-white/95 backdrop-blur-md dark:border-slate-800 dark:bg-navy-900/95">
+      <header
+        className={`sticky top-0 z-30 border-b border-slate-200 bg-white/95 backdrop-blur-md transition-transform duration-300 ease-in-out dark:border-slate-800 dark:bg-navy-900/95 ${
+          hideHeaderOnMobile ? "-translate-y-full md:translate-y-0" : "translate-y-0"
+        }`}
+      >
         <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-3 px-4 py-3.5 sm:px-6 lg:px-8">
           <div className="flex items-center gap-3">
             <Link

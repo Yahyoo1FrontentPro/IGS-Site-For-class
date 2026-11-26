@@ -23,6 +23,7 @@ import {
   getTodayDateISO,
 } from "@/lib/calculations";
 import { ThemeToggle } from "@/components/ThemeToggle";
+import { useHideOnMobileScroll } from "@/lib/useHideOnMobileScroll";
 
 interface AbsencePageClientProps {
   sessionUser: SessionUser | null;
@@ -51,6 +52,7 @@ export function AbsencePageClient({
   initialAbsences,
 }: AbsencePageClientProps) {
   const router = useRouter();
+  const hideHeaderOnMobile = useHideOnMobileScroll();
   const todayIso = getTodayDateISO();
   const tomorrowIso = getTomorrowDateISO();
 
@@ -107,7 +109,11 @@ export function AbsencePageClient({
 
   return (
     <div className="min-h-screen bg-slate-50 pb-16 dark:bg-navy-950">
-      <header className="sticky top-0 z-30 border-b border-slate-200/90 bg-white/95 backdrop-blur-md dark:border-slate-800/80 dark:bg-navy-900/95">
+      <header
+        className={`sticky top-0 z-30 border-b border-slate-200/90 bg-white/95 backdrop-blur-md transition-transform duration-300 ease-in-out dark:border-slate-800/80 dark:bg-navy-900/95 ${
+          hideHeaderOnMobile ? "-translate-y-full md:translate-y-0" : "translate-y-0"
+        }`}
+      >
         <div className="mx-auto flex max-w-4xl flex-wrap items-center justify-between gap-3 px-4 py-3.5 sm:px-6">
           <div className="flex items-center gap-3">
             <Link

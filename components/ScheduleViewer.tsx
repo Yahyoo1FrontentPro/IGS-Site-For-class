@@ -14,6 +14,7 @@ import {
 import { ClassSchedule, SessionUser } from "@/types";
 import { DAYS_OF_WEEK, getCurrentDayOfWeek } from "@/lib/calculations";
 import { ThemeToggle } from "@/components/ThemeToggle";
+import { useHideOnMobileScroll } from "@/lib/useHideOnMobileScroll";
 
 interface ScheduleViewerProps {
   schedules: ClassSchedule[];
@@ -26,6 +27,7 @@ export function ScheduleViewer({
   sessionUser = null,
   standalone = false,
 }: ScheduleViewerProps) {
+  const hideHeaderOnMobile = useHideOnMobileScroll();
   const activeDefault = useMemo(
     () => schedules.find((s) => s.is_active) ?? schedules[0] ?? null,
     [schedules]
@@ -231,7 +233,11 @@ export function ScheduleViewer({
 
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-navy-950">
-      <header className="sticky top-0 z-30 border-b border-slate-200 bg-white/95 px-4 py-3.5 backdrop-blur-md sm:px-6 lg:px-8 dark:border-slate-800 dark:bg-navy-900/95">
+      <header
+        className={`sticky top-0 z-30 border-b border-slate-200 bg-white/95 px-4 py-3.5 backdrop-blur-md transition-transform duration-300 ease-in-out sm:px-6 lg:px-8 dark:border-slate-800 dark:bg-navy-900/95 ${
+          hideHeaderOnMobile ? "-translate-y-full md:translate-y-0" : "translate-y-0"
+        }`}
+      >
         <div className="mx-auto flex max-w-7xl items-center justify-between">
           <Link
             href="/"

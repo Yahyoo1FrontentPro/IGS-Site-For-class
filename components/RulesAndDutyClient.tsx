@@ -26,6 +26,7 @@ import {
   getTodayWeekdayName,
 } from "@/lib/class-info";
 import { ThemeToggle } from "@/components/ThemeToggle";
+import { useHideOnMobileScroll } from "@/lib/useHideOnMobileScroll";
 
 interface RulesAndDutyClientProps {
   sessionUser: SessionUser | null;
@@ -45,11 +46,16 @@ export function RulesAndDutyClient({
 }: RulesAndDutyClientProps) {
   const [view, setView] = useState<"all" | "rules" | "duty">(initialView);
   const todayWeekday = useMemo(() => getTodayWeekdayName(), []);
+  const hideHeaderOnMobile = useHideOnMobileScroll();
 
   return (
     <div className="min-h-screen bg-slate-50 pb-16 dark:bg-navy-950">
       {/* Header */}
-      <header className="sticky top-0 z-30 border-b border-slate-200/90 bg-white/95 backdrop-blur-md dark:border-slate-800/80 dark:bg-navy-900/95">
+      <header
+        className={`sticky top-0 z-30 border-b border-slate-200/90 bg-white/95 backdrop-blur-md transition-transform duration-300 ease-in-out dark:border-slate-800/80 dark:bg-navy-900/95 ${
+          hideHeaderOnMobile ? "-translate-y-full md:translate-y-0" : "translate-y-0"
+        }`}
+      >
         <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-3 px-4 py-3.5 sm:px-6 lg:px-8">
           <div className="flex items-center gap-3">
             <Link
