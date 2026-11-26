@@ -38,6 +38,7 @@ import {
   formatTimestampRelative,
 } from "@/lib/calculations";
 import { SoloRaceChart } from "@/components/TeamRaceChart";
+import { WEEKLY_PRIZES, getPrizeForPlace } from "@/lib/prizes";
 import { ScheduleViewer } from "@/components/ScheduleViewer";
 import { ThemeToggle } from "@/components/ThemeToggle";
 
@@ -354,6 +355,31 @@ export function PublicDashboardClient({
             </p>
           </div>
 
+          {/* Weekly Chocolate Prizes */}
+          <div className="mt-5 rounded-2xl border border-amber-200 bg-gradient-to-r from-amber-50 via-orange-50 to-amber-50 p-4 dark:border-amber-800/50 dark:from-amber-950/30 dark:via-orange-950/20 dark:to-amber-950/30">
+            <p className="text-xs font-black uppercase tracking-wider text-amber-800 dark:text-amber-300">
+              🍫 Weekly Prizes for the Top 3 Students
+            </p>
+            <div className="mt-3 grid grid-cols-1 gap-2.5 sm:grid-cols-3">
+              {WEEKLY_PRIZES.map((p) => (
+                <div
+                  key={p.place}
+                  className="flex items-center gap-3 rounded-xl border border-amber-200/80 bg-white/80 px-3.5 py-2.5 dark:border-amber-800/40 dark:bg-navy-900/70"
+                >
+                  <span className="text-2xl">{p.emoji}</span>
+                  <div>
+                    <p className="text-xs font-extrabold text-slate-900 dark:text-white">
+                      {p.label}
+                    </p>
+                    <p className="text-xs font-semibold text-amber-700 dark:text-amber-300">
+                      {p.prize}
+                    </p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
           {/* Top 3 Solo Podium Cards */}
           <div className="mt-5 grid grid-cols-1 gap-4 md:grid-cols-3">
             {top3Podium.map((item, idx) => {
@@ -402,6 +428,11 @@ export function PublicDashboardClient({
                     Active ×{item.activeCount} • Star ×{item.starCount} • Ace ×
                     {item.aceCount} • Duty ×{item.dutyCount}
                   </p>
+                  {getPrizeForPlace(idx + 1) && (
+                    <p className="mt-3 rounded-lg bg-amber-100/80 px-2.5 py-1.5 text-xs font-bold text-amber-800 dark:bg-amber-950/50 dark:text-amber-300">
+                      🎁 Prize: {getPrizeForPlace(idx + 1)!.prize}
+                    </p>
+                  )}
                 </div>
               );
             })}

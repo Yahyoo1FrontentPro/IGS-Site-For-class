@@ -20,6 +20,7 @@ import {
   getCurrentDayOfWeek,
 } from "@/lib/calculations";
 import { SoloRaceChart } from "@/components/TeamRaceChart";
+import { getPrizeForPlace } from "@/lib/prizes";
 
 interface ClassroomTvClientProps {
   dataset: HubDataset;
@@ -229,6 +230,11 @@ export function ClassroomTvClient({ dataset }: ClassroomTvClientProps) {
                       <span className="ml-1.5 text-sm font-semibold text-slate-300">
                         pts
                       </span>
+                      {getPrizeForPlace(idx + 1) && (
+                        <p className="mt-3 rounded-lg bg-white/10 px-2.5 py-1.5 text-sm font-bold text-white">
+                          {getPrizeForPlace(idx + 1)!.emoji} {getPrizeForPlace(idx + 1)!.prize}
+                        </p>
+                      )}
                     </div>
                   </div>
                 );

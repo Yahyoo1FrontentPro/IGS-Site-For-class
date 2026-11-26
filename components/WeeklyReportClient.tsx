@@ -12,6 +12,7 @@ import {
   filterByWeek,
   formatShortDate,
 } from "@/lib/calculations";
+import { WEEKLY_PRIZES } from "@/lib/prizes";
 
 interface WeeklyReportClientProps {
   dataset: HubDataset;
@@ -205,6 +206,43 @@ export function WeeklyReportClient({
               </p>
             )}
           </div>
+        </section>
+
+        {/* Weekly Prize Winners */}
+        <section className="print-avoid-break mt-6">
+          <h2 className="text-sm font-black uppercase tracking-wider text-slate-800">
+            Weekly Prize Winners (Top 3)
+          </h2>
+          <table className="mt-2 w-full border-collapse border border-slate-300 text-left text-xs">
+            <thead>
+              <tr className="bg-slate-100 text-slate-700">
+                <th className="border border-slate-300 px-3 py-2">Place</th>
+                <th className="border border-slate-300 px-3 py-2">Student</th>
+                <th className="border border-slate-300 px-3 py-2 text-right">Points</th>
+                <th className="border border-slate-300 px-3 py-2">Prize</th>
+              </tr>
+            </thead>
+            <tbody>
+              {WEEKLY_PRIZES.map((p, idx) => {
+                const row = leaderboard[idx];
+                const hasWinner = row && row.totalPoints > 0;
+                return (
+                  <tr key={p.place}>
+                    <td className="border border-slate-300 px-3 py-1.5 font-bold">
+                      {p.label}
+                    </td>
+                    <td className="border border-slate-300 px-3 py-1.5 font-bold">
+                      {hasWinner ? row.student.name : "—"}
+                    </td>
+                    <td className="border border-slate-300 px-3 py-1.5 text-right">
+                      {hasWinner ? row.totalPoints : "—"}
+                    </td>
+                    <td className="border border-slate-300 px-3 py-1.5">{p.prize}</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
         </section>
 
         {/* Subject Champions Table */}
