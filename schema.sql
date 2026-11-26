@@ -114,6 +114,16 @@ CREATE INDEX idx_team_bonuses_week_id ON public.team_bonuses(week_id);
 CREATE INDEX idx_team_bonuses_date ON public.team_bonuses(date DESC);
 
 -- ============================================================================
+-- TABLE & SCHEMA GRANTS FOR SUPABASE API ROLES (anon, authenticated, service_role)
+-- ============================================================================
+
+GRANT USAGE ON SCHEMA public TO anon, authenticated, service_role;
+GRANT SELECT ON public.teams, public.students, public.subjects, public.weeks, public.point_logs, public.team_bonuses TO anon, authenticated;
+REVOKE ALL ON public.app_users FROM anon, authenticated;
+GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO service_role;
+GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA public TO service_role;
+
+-- ============================================================================
 -- ROW LEVEL SECURITY (RLS) POLICIES
 -- Public read-only access for Dashboard, TV Mode, and Reports.
 -- app_users is strictly private to service_role (never exposed to browser anon).
