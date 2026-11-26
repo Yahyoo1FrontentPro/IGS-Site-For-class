@@ -1,33 +1,37 @@
 import { NextRequest, NextResponse } from "next/server";
 import { isAdminAuthenticated } from "@/lib/auth";
 import { generateId, readLocalStore, writeLocalStore } from "@/lib/local-store";
-import { getSeedPreviewDataset } from "@/lib/seed-preview";
 import { getSupabaseAdminClient, isSupabaseAdminConfigured } from "@/lib/supabase";
 import { getTodayDateISO } from "@/lib/calculations";
 
+/**
+ * Resets the site back to its clean starting state (0 points, 0 combo streaks, fresh Week 1)
+ * WITHOUT ever deleting students, teams, subjects, or user accounts.
+ */
 export async function POST(req: NextRequest) {
   if (!isAdminAuthenticated()) {
-    return NextResponse.json({ error: "Unauthorized. Admin access required." }, { status: 401 });
+    return NextResponse.json(
+      { error: "Unauthorized. Admin access required." },
+      { status: 401 }
+    );
   }
 
   try {
     const body = (await req.json()) as {
-      mode?: unknown;
       confirmText?: unknown;
     };
 
     const confirmText =
-      typeof body.confirmText === "string" ? body.confirmText.trim().toUpperCase() : "";
+      typeof body.confirmText === "string"
+        ? body.confirmText.trim().toUpperCase()
+        : "";
+
     if (confirmText !== "RESET") {
       return NextResponse.json(
-        { error: 'Please type RESET to confirm clearing all data.' },
+        { error: "Please type RESET to confirm." },
         { status: 400 }
       );
     }
-
-    // mode: "scores" (default: clears all points, combos, and resets weeks to Week 1)
-    // mode: "factory" (also restores default 19 students & 7 subjects)
-    const mode = body.mode === "factory" ? "factory" : "scores";
 
     const todayStr = getTodayDateISO();
     const endDt = new Date();
@@ -37,10 +41,16 @@ export async function POST(req: NextRequest) {
     if (isSupabaseAdminConfigured()) {
       const supabase = getSupabaseAdminClient();
 
-      // 1. Delete all point_logs and team_bonuses
+      // 1. Clear ONLY score logs and combo bonuses (NEVER touch students, teams, subjects, or app_users!)
       const [delLogs, delBonuses] = await Promise.all([
-        supabase.from("point_logs").delete().neq("id", "00000000-0000-0000-0000-000000000000"),
-        supabase.from("team_bonuses").delete().neq("id", "00000000-0000-0000-0000-000000000000"),
+        supabase
+          .from("point_logs")
+          .delete()
+          .neq("id", "00000000-0000-0000-0000-000000000000"),
+        supabase
+          .from("team_bonuses")
+          .delete()
+          .neq("id", "00000000-0000-0000-0000-000000000000"),
       ]);
 
       if (delLogs.error) {
@@ -50,8 +60,11 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: delBonuses.error.message }, { status: 500 });
       }
 
-      // 2. Reset weeks back to fresh active Week 1
-      await supabase.from("weeks").delete().neq("id", "00000000-0000-0000-0000-000000000000");
+      // 2. Return weeks back to clean Week 1
+      await supabase
+        .from("weeks")
+        .delete()
+        .neq("id", "00000000-0000-0000-0000-000000000000");
 
       const { data: freshWeek, error: weekErr } = await supabase
         .from("weeks")
@@ -69,31 +82,31 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: weekErr.message }, { status: 500 });
       }
 
-      if (mode === "factory") {
-        // Restore all subjects to visible and students to active
-        await Promise.all([
-          supabase
-            .from("subjects")
-            .update({ is_hidden: false })
-            .neq("id", "00000000-0000-0000-0000-000000000000"),
-          supabase
-            .from("students")
-            .update({ is_active: true })
-            .neq("id", "00000000-0000-0000-0000-000000000000"),
-        ]);
-      }
+      // 3. Ensure all existing students & subjects are active/visible just like initial state
+      await Promise.all([
+        supabase
+          .from("students")
+          .update({ is_active: true })
+          .neq("id", "00000000-0000-0000-0000-000000000000"),
+        supabase
+          .from("subjects")
+          .update({ is_hidden: false })
+          .neq("id", "00000000-0000-0000-0000-000000000000"),
+      ]);
 
       return NextResponse.json({
         cleared: true,
-        mode,
         activeWeek: freshWeek,
       });
     }
 
-    // Local Store Fallback
+    // Local Store Fallback — keep all students, teams, subjects & accounts intact
     const store = readLocalStore();
     store.pointLogs = [];
     store.teamBonuses = [];
+    store.students = store.students.map((s) => ({ ...s, is_active: true }));
+    store.subjects = store.subjects.map((sub) => ({ ...sub, is_hidden: false }));
+
     const freshWeek = {
       id: generateId(),
       week_number: 1,
@@ -105,18 +118,10 @@ export async function POST(req: NextRequest) {
     };
     store.weeks = [freshWeek];
 
-    if (mode === "factory") {
-      const seed = getSeedPreviewDataset();
-      store.teams = seed.teams;
-      store.students = seed.students;
-      store.subjects = seed.subjects;
-    }
-
     writeLocalStore(store);
 
     return NextResponse.json({
       cleared: true,
-      mode,
       activeWeek: freshWeek,
     });
   } catch (err) {

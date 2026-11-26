@@ -139,7 +139,6 @@ export function AdminPanelClient({
 
   // Management Tab State — Clear All Data Modal
   const [showResetModal, setShowResetModal] = useState(false);
-  const [resetMode, setResetMode] = useState<"scores" | "factory">("scores");
   const [resetConfirmText, setResetConfirmText] = useState("");
   const [clearingData, setClearingData] = useState(false);
 
@@ -463,7 +462,6 @@ export function AdminPanelClient({
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          mode: resetMode,
           confirmText: resetConfirmText.trim(),
         }),
       });
@@ -484,14 +482,16 @@ export function AdminPanelClient({
 
       setPointLogs([]);
       setTeamBonuses([]);
+      setStudents((prev) => prev.map((s) => ({ ...s, is_active: true })));
+      setSubjects((prev) => prev.map((sub) => ({ ...sub, is_hidden: false })));
       if (data.activeWeek) {
         setWeeks([data.activeWeek]);
       }
       setShowResetModal(false);
       setResetConfirmText("");
       pushToast({
-        title: "All Data Cleared!",
-        subtitle: "All scores & combo streaks reset cleanly to 0 for Week 1.",
+        title: "Returned to Clean Start!",
+        subtitle: "All points reset to 0 (Week 1). All students, teams & accounts kept safe.",
         variant: "warning",
       });
       router.refresh();
@@ -1521,13 +1521,12 @@ export function AdminPanelClient({
                   type="button"
                   onClick={() => {
                     setResetConfirmText("");
-                    setResetMode("scores");
                     setShowResetModal(true);
                   }}
                   className="inline-flex shrink-0 items-center gap-2 rounded-xl bg-rose-600 px-4 py-2.5 text-xs font-bold text-white shadow hover:bg-rose-500"
                 >
                   <Trash2 className="h-4 w-4" />
-                  Clear All Data...
+                  Clear Data (Reset to 0)
                 </button>
               </div>
             </section>
@@ -1542,14 +1541,14 @@ export function AdminPanelClient({
             <div className="flex items-start justify-between">
               <div className="flex items-center gap-2.5">
                 <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-rose-100 text-rose-600 dark:bg-rose-950 dark:text-rose-400">
-                  <Trash2 className="h-5 w-5" />
+                  <RotateCcw className="h-5 w-5" />
                 </div>
                 <div>
                   <h3 className="text-base font-extrabold text-slate-900 dark:text-white">
-                    Confirm Clear All Data
+                    Return Site to Clean Start (0 Points)
                   </h3>
                   <p className="text-xs text-slate-500 dark:text-slate-400">
-                    This action permanently deletes score logs.
+                    Students, teams, subjects, and accounts will NOT be deleted.
                   </p>
                 </div>
               </div>
@@ -1563,42 +1562,11 @@ export function AdminPanelClient({
             </div>
 
             <form onSubmit={handleClearAllData} className="mt-4 space-y-4">
-              <div className="space-y-2 text-xs">
-                <label className="flex cursor-pointer items-start gap-2.5 rounded-xl border border-slate-200 p-3 dark:border-slate-800">
-                  <input
-                    type="radio"
-                    name="resetMode"
-                    checked={resetMode === "scores"}
-                    onChange={() => setResetMode("scores")}
-                    className="mt-0.5"
-                  />
-                  <div>
-                    <p className="font-bold text-slate-900 dark:text-white">
-                      Clear All Points, Combos &amp; Weeks (Recommended)
-                    </p>
-                    <p className="text-slate-500 dark:text-slate-400">
-                      Resets all scores to 0 and starts fresh at Week 1. Keeps all students, teams, subjects, and accounts.
-                    </p>
-                  </div>
-                </label>
-
-                <label className="flex cursor-pointer items-start gap-2.5 rounded-xl border border-slate-200 p-3 dark:border-slate-800">
-                  <input
-                    type="radio"
-                    name="resetMode"
-                    checked={resetMode === "factory"}
-                    onChange={() => setResetMode("factory")}
-                    className="mt-0.5"
-                  />
-                  <div>
-                    <p className="font-bold text-slate-900 dark:text-white">
-                      Clear Scores + Restore Hidden Subjects / Archived Students
-                    </p>
-                    <p className="text-slate-500 dark:text-slate-400">
-                      Also un-archives any hidden subjects or archived students.
-                    </p>
-                  </div>
-                </label>
+              <div className="rounded-2xl border border-emerald-200 bg-emerald-50/70 p-3.5 text-xs text-emerald-900 dark:border-emerald-900/50 dark:bg-emerald-950/40 dark:text-emerald-200">
+                <p className="font-bold">What stays 100% safe:</p>
+                <p className="mt-0.5">
+                  All 19 students, all 3 teams, all 7 subjects, and all user accounts &amp; passwords remain untouched. Only points &amp; combo streaks return to <strong>0</strong> (Week 1).
+                </p>
               </div>
 
               <div>
