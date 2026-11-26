@@ -13,7 +13,11 @@ import {
   UserRole,
   Week,
 } from "@/types";
-import { BUILTIN_ADMIN_PASSWORD_HASH, BUILTIN_ADMIN_USERNAME } from "@/lib/auth";
+import {
+  BUILTIN_ADMIN_PASSWORD_HASH,
+  BUILTIN_ADMIN_USERNAME,
+  DEFAULT_STUDENT_PASSWORD_HASH,
+} from "@/lib/auth";
 import { getSeedPreviewDataset } from "@/lib/seed-preview";
 
 export interface StoredAppUser {
@@ -55,6 +59,16 @@ function createInitialStore(): LocalStoreData {
         role: "admin",
         created_at: nowIso,
       },
+      ...seed.students.map((st, idx) => ({
+        id: `user-student-${idx + 1}`,
+        username: st.name,
+        username_lower: st.name.toLowerCase(),
+        phone: null,
+        phone_normalized: null,
+        password_hash: DEFAULT_STUDENT_PASSWORD_HASH,
+        role: "student" as const,
+        created_at: nowIso,
+      })),
     ],
     teams: seed.teams,
     students: seed.students,

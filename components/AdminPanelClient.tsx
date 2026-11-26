@@ -14,14 +14,17 @@ import {
   Eye,
   EyeOff,
   Flame,
+  KeyRound,
   Loader2,
   LogOut,
   Phone,
   Plus,
+  RotateCcw,
   Settings,
   ShieldAlert,
   ShieldCheck,
   Sparkles,
+  Trash2,
   Undo2,
   UserPlus,
   Users,
@@ -133,6 +136,12 @@ export function AdminPanelClient({
   const [newSubjectName, setNewSubjectName] = useState("");
   const [newSubjectAward, setNewSubjectAward] = useState("");
   const [addingSubject, setAddingSubject] = useState(false);
+
+  // Management Tab State — Clear All Data Modal
+  const [showResetModal, setShowResetModal] = useState(false);
+  const [resetMode, setResetMode] = useState<"scores" | "factory">("scores");
+  const [resetConfirmText, setResetConfirmText] = useState("");
+  const [clearingData, setClearingData] = useState(false);
 
   const pushToast = (toast: Omit<ToastMessage, "id">) => {
     const id = `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
@@ -421,6 +430,76 @@ export function AdminPanelClient({
     });
   };
 
+  // Reset Student Password back to 12345678
+  const handleResetStudentPassword = async (target: AppUserSummary) => {
+    const res = await fetch("/api/admin/users", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ userId: target.id, resetPassword: true }),
+    });
+    const data = (await res.json()) as { user?: AppUserSummary; error?: string };
+    if (!res.ok || !data.user) {
+      pushToast({
+        title: "Could not reset password",
+        subtitle: data.error,
+        variant: "error",
+      });
+      return;
+    }
+    pushToast({
+      title: `Password Reset for @${target.username}`,
+      subtitle: "Temporary password restored to 12345678.",
+      variant: "success",
+    });
+  };
+
+  // Clear All Data Handler
+  const handleClearAllData = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (resetConfirmText.trim().toUpperCase() !== "RESET") return;
+    setClearingData(true);
+    try {
+      const res = await fetch("/api/admin/reset", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          mode: resetMode,
+          confirmText: resetConfirmText.trim(),
+        }),
+      });
+      const data = (await res.json()) as {
+        cleared?: boolean;
+        activeWeek?: Week;
+        error?: string;
+      };
+
+      if (!res.ok || !data.cleared) {
+        pushToast({
+          title: "Failed to clear data",
+          subtitle: data.error,
+          variant: "error",
+        });
+        return;
+      }
+
+      setPointLogs([]);
+      setTeamBonuses([]);
+      if (data.activeWeek) {
+        setWeeks([data.activeWeek]);
+      }
+      setShowResetModal(false);
+      setResetConfirmText("");
+      pushToast({
+        title: "All Data Cleared!",
+        subtitle: "All scores & combo streaks reset cleanly to 0 for Week 1.",
+        variant: "warning",
+      });
+      router.refresh();
+    } finally {
+      setClearingData(false);
+    }
+  };
+
   // Management: Start New Week
   const handleCreateWeek = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -676,6 +755,15 @@ export function AdminPanelClient({
             </div>
 
             <ThemeToggle />
+
+            <Link
+              href="/account"
+              title="Account Settings & Change Password"
+              className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-700 transition hover:bg-slate-100 dark:border-slate-700 dark:bg-navy-800 dark:text-slate-200"
+            >
+              <KeyRound className="h-3.5 w-3.5" />
+              <span className="hidden sm:inline">Password</span>
+            </Link>
 
             <button
               type="button"
@@ -1378,13 +1466,24 @@ export function AdminPanelClient({
                               Primary Owner
                             </span>
                           ) : (
-                            <button
-                              type="button"
-                              onClick={() => handleToggleUserRole(u)}
-                              className="rounded-lg border border-slate-200 px-2.5 py-1 text-[11px] font-bold text-slate-700 hover:bg-slate-100 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-navy-800"
-                            >
-                              {u.role === "admin" ? "Make Student" : "Make Admin"}
-                            </button>
+                            <div className="inline-flex items-center gap-1.5">
+                              <button
+                                type="button"
+                                onClick={() => handleResetStudentPassword(u)}
+                                title="Reset student password back to 12345678"
+                                className="inline-flex items-center gap-1 rounded-lg border border-slate-200 px-2 py-1 text-[11px] font-semibold text-slate-600 hover:bg-slate-100 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-navy-800"
+                              >
+                                <RotateCcw className="h-3 w-3" />
+                                Reset PW
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleToggleUserRole(u)}
+                                className="rounded-lg border border-slate-200 px-2.5 py-1 text-[11px] font-bold text-slate-700 hover:bg-slate-100 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-navy-800"
+                              >
+                                {u.role === "admin" ? "Make Student" : "Make Admin"}
+                              </button>
+                            </div>
                           )}
                         </td>
                       </tr>
@@ -1400,9 +1499,149 @@ export function AdminPanelClient({
                 </table>
               </div>
             </section>
+
+            {/* 5. Danger Zone — Clear All Data */}
+            <section className="rounded-3xl border border-rose-200 bg-rose-50/40 p-6 shadow-sm dark:border-rose-900/50 dark:bg-rose-950/20">
+              <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                <div className="flex items-start gap-3">
+                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-rose-100 text-rose-600 dark:bg-rose-950 dark:text-rose-400">
+                    <Trash2 className="h-5 w-5" />
+                  </div>
+                  <div>
+                    <h2 className="text-lg font-extrabold text-rose-900 dark:text-rose-200">
+                      Clear All Data (Reset Scores &amp; Weeks)
+                    </h2>
+                    <p className="mt-0.5 text-xs text-rose-700/90 dark:text-rose-300/80">
+                      Wipes all awarded points, penalties, Team Combo Streaks, and resets weeks back to a fresh Week 1 while keeping your students, teams, and accounts safe.
+                    </p>
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setResetConfirmText("");
+                    setResetMode("scores");
+                    setShowResetModal(true);
+                  }}
+                  className="inline-flex shrink-0 items-center gap-2 rounded-xl bg-rose-600 px-4 py-2.5 text-xs font-bold text-white shadow hover:bg-rose-500"
+                >
+                  <Trash2 className="h-4 w-4" />
+                  Clear All Data...
+                </button>
+              </div>
+            </section>
           </div>
         )}
       </main>
+
+      {/* Clear All Data Confirmation Modal */}
+      {showResetModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 p-4 backdrop-blur-sm">
+          <div className="w-full max-w-md rounded-3xl border border-rose-200 bg-white p-6 shadow-2xl dark:border-rose-900/60 dark:bg-navy-900">
+            <div className="flex items-start justify-between">
+              <div className="flex items-center gap-2.5">
+                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-rose-100 text-rose-600 dark:bg-rose-950 dark:text-rose-400">
+                  <Trash2 className="h-5 w-5" />
+                </div>
+                <div>
+                  <h3 className="text-base font-extrabold text-slate-900 dark:text-white">
+                    Confirm Clear All Data
+                  </h3>
+                  <p className="text-xs text-slate-500 dark:text-slate-400">
+                    This action permanently deletes score logs.
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowResetModal(false)}
+                className="rounded-lg p-1 text-slate-400 hover:bg-slate-100 dark:hover:bg-navy-800"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleClearAllData} className="mt-4 space-y-4">
+              <div className="space-y-2 text-xs">
+                <label className="flex cursor-pointer items-start gap-2.5 rounded-xl border border-slate-200 p-3 dark:border-slate-800">
+                  <input
+                    type="radio"
+                    name="resetMode"
+                    checked={resetMode === "scores"}
+                    onChange={() => setResetMode("scores")}
+                    className="mt-0.5"
+                  />
+                  <div>
+                    <p className="font-bold text-slate-900 dark:text-white">
+                      Clear All Points, Combos &amp; Weeks (Recommended)
+                    </p>
+                    <p className="text-slate-500 dark:text-slate-400">
+                      Resets all scores to 0 and starts fresh at Week 1. Keeps all students, teams, subjects, and accounts.
+                    </p>
+                  </div>
+                </label>
+
+                <label className="flex cursor-pointer items-start gap-2.5 rounded-xl border border-slate-200 p-3 dark:border-slate-800">
+                  <input
+                    type="radio"
+                    name="resetMode"
+                    checked={resetMode === "factory"}
+                    onChange={() => setResetMode("factory")}
+                    className="mt-0.5"
+                  />
+                  <div>
+                    <p className="font-bold text-slate-900 dark:text-white">
+                      Clear Scores + Restore Hidden Subjects / Archived Students
+                    </p>
+                    <p className="text-slate-500 dark:text-slate-400">
+                      Also un-archives any hidden subjects or archived students.
+                    </p>
+                  </div>
+                </label>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold uppercase tracking-wider text-slate-600 dark:text-slate-300">
+                  Type <code className="font-mono text-rose-600">RESET</code> to confirm
+                </label>
+                <input
+                  type="text"
+                  required
+                  autoFocus
+                  value={resetConfirmText}
+                  onChange={(e) => setResetConfirmText(e.target.value)}
+                  placeholder="RESET"
+                  className="mt-1.5 w-full rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-2.5 text-sm font-bold uppercase text-slate-900 focus:border-rose-500 focus:outline-none dark:border-slate-700 dark:bg-navy-950 dark:text-white"
+                />
+              </div>
+
+              <div className="flex items-center justify-end gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setShowResetModal(false)}
+                  className="rounded-xl border border-slate-200 px-4 py-2 text-xs font-bold text-slate-600 hover:bg-slate-100 dark:border-slate-700 dark:text-slate-300"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={
+                    clearingData || resetConfirmText.trim().toUpperCase() !== "RESET"
+                  }
+                  className="inline-flex items-center gap-1.5 rounded-xl bg-rose-600 px-4 py-2 text-xs font-bold text-white shadow hover:bg-rose-500 disabled:opacity-50"
+                >
+                  {clearingData ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    "Clear All Data Now"
+                  )}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
 
       {/* Mandatory Reason Modal for -1 Fair-Play */}
       {fairPlayTarget && (

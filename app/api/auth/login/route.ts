@@ -3,6 +3,7 @@ import {
   BUILTIN_ADMIN_PASSWORD_HASH,
   BUILTIN_ADMIN_USERNAME,
   createSessionCookieValue,
+  DEFAULT_STUDENT_PASSWORD_HASH,
   SESSION_COOKIE_NAME,
 } from "@/lib/auth";
 import { readLocalStore } from "@/lib/local-store";
@@ -113,6 +114,48 @@ export async function POST(req: NextRequest) {
           maxAge: 60 * 60 * 24 * 14,
         });
         return response;
+      }
+
+      // Auto-provision student account if student exists in roster and logs in with initial password (12345678)
+      if (verifyPassword(password, DEFAULT_STUDENT_PASSWORD_HASH)) {
+        const { data: rosterStudent } = await supabase
+          .from("students")
+          .select("id, name")
+          .ilike("name", identifier)
+          .limit(1)
+          .maybeSingle();
+
+        if (rosterStudent) {
+          const safeUsername = (rosterStudent.name as string).replace(/\s+/g, "_");
+          const { data: createdStudentAcc } = await supabase
+            .from("app_users")
+            .insert({
+              username: safeUsername,
+              password_hash: DEFAULT_STUDENT_PASSWORD_HASH,
+              role: "student",
+            })
+            .select("id, username, phone, role")
+            .maybeSingle();
+
+          const sessionUser: SessionUser = {
+            id: (createdStudentAcc?.id as string | undefined) ?? (rosterStudent.id as string),
+            username: (createdStudentAcc?.username as string | undefined) ?? safeUsername,
+            phone: null,
+            role: "student",
+          };
+
+          const response = NextResponse.json({ user: sessionUser });
+          response.cookies.set({
+            name: SESSION_COOKIE_NAME,
+            value: createSessionCookieValue(sessionUser),
+            httpOnly: true,
+            sameSite: "lax",
+            secure: process.env.NODE_ENV === "production",
+            path: "/",
+            maxAge: 60 * 60 * 24 * 14,
+          });
+          return response;
+        }
       }
 
       return NextResponse.json(

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import {
   BUILTIN_ADMIN_USERNAME,
+  DEFAULT_STUDENT_PASSWORD_HASH,
   getSessionUser,
   isAdminAuthenticated,
 } from "@/lib/auth";
@@ -47,6 +48,7 @@ export async function PATCH(req: NextRequest) {
       userId?: unknown;
       role?: unknown;
       phone?: unknown;
+      resetPassword?: unknown;
     };
 
     const userId = typeof body.userId === "string" ? body.userId.trim() : "";
@@ -97,6 +99,19 @@ export async function PATCH(req: NextRequest) {
           updates.phone = trimmedPhone;
           updates.phone_normalized = normalizePhone(trimmedPhone);
         }
+      }
+
+      if (body.resetPassword === true) {
+        if (
+          (targetUser.username as string).toLowerCase() ===
+          BUILTIN_ADMIN_USERNAME.toLowerCase()
+        ) {
+          return NextResponse.json(
+            { error: "Cannot reset primary owner password to default." },
+            { status: 400 }
+          );
+        }
+        updates.password_hash = DEFAULT_STUDENT_PASSWORD_HASH;
       }
 
       if (Object.keys(updates).length === 0) {
@@ -155,6 +170,16 @@ export async function PATCH(req: NextRequest) {
         target.phone = trimmedPhone;
         target.phone_normalized = normalizePhone(trimmedPhone);
       }
+    }
+
+    if (body.resetPassword === true) {
+      if (target.username_lower === BUILTIN_ADMIN_USERNAME.toLowerCase()) {
+        return NextResponse.json(
+          { error: "Cannot reset primary owner password to default." },
+          { status: 400 }
+        );
+      }
+      target.password_hash = DEFAULT_STUDENT_PASSWORD_HASH;
     }
 
     writeLocalStore(store);

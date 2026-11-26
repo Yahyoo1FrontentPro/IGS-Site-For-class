@@ -222,6 +222,28 @@ BEGIN
     'admin'
   );
 
+  -- Insert Pre-Created Accounts for All 19 MYP 3 Students (initial password: 12345678, changeable at /account)
+  INSERT INTO public.app_users (username, phone, phone_normalized, password_hash, role) VALUES
+    ('Yasmina', NULL, NULL, 'scrypt$1fa161cc3bec83eb3148b994aec6a1ca$a873f243815c712f8893fdc29798cb929e6a53294f9e82a19de222ed52e9b75ee4f966f7e19548546994f68c281ca5ccc73513ff1fcfc2fdbe7245ef81eaa4f0', 'student'),
+    ('Charos', NULL, NULL, 'scrypt$1fa161cc3bec83eb3148b994aec6a1ca$a873f243815c712f8893fdc29798cb929e6a53294f9e82a19de222ed52e9b75ee4f966f7e19548546994f68c281ca5ccc73513ff1fcfc2fdbe7245ef81eaa4f0', 'student'),
+    ('Ezoza', NULL, NULL, 'scrypt$1fa161cc3bec83eb3148b994aec6a1ca$a873f243815c712f8893fdc29798cb929e6a53294f9e82a19de222ed52e9b75ee4f966f7e19548546994f68c281ca5ccc73513ff1fcfc2fdbe7245ef81eaa4f0', 'student'),
+    ('Diyora', NULL, NULL, 'scrypt$1fa161cc3bec83eb3148b994aec6a1ca$a873f243815c712f8893fdc29798cb929e6a53294f9e82a19de222ed52e9b75ee4f966f7e19548546994f68c281ca5ccc73513ff1fcfc2fdbe7245ef81eaa4f0', 'student'),
+    ('Fazliya', NULL, NULL, 'scrypt$1fa161cc3bec83eb3148b994aec6a1ca$a873f243815c712f8893fdc29798cb929e6a53294f9e82a19de222ed52e9b75ee4f966f7e19548546994f68c281ca5ccc73513ff1fcfc2fdbe7245ef81eaa4f0', 'student'),
+    ('Sofiya', NULL, NULL, 'scrypt$1fa161cc3bec83eb3148b994aec6a1ca$a873f243815c712f8893fdc29798cb929e6a53294f9e82a19de222ed52e9b75ee4f966f7e19548546994f68c281ca5ccc73513ff1fcfc2fdbe7245ef81eaa4f0', 'student'),
+    ('Azam', NULL, NULL, 'scrypt$1fa161cc3bec83eb3148b994aec6a1ca$a873f243815c712f8893fdc29798cb929e6a53294f9e82a19de222ed52e9b75ee4f966f7e19548546994f68c281ca5ccc73513ff1fcfc2fdbe7245ef81eaa4f0', 'student'),
+    ('Abdulmajid', NULL, NULL, 'scrypt$1fa161cc3bec83eb3148b994aec6a1ca$a873f243815c712f8893fdc29798cb929e6a53294f9e82a19de222ed52e9b75ee4f966f7e19548546994f68c281ca5ccc73513ff1fcfc2fdbe7245ef81eaa4f0', 'student'),
+    ('Jahongir', NULL, NULL, 'scrypt$1fa161cc3bec83eb3148b994aec6a1ca$a873f243815c712f8893fdc29798cb929e6a53294f9e82a19de222ed52e9b75ee4f966f7e19548546994f68c281ca5ccc73513ff1fcfc2fdbe7245ef81eaa4f0', 'student'),
+    ('Javhar', NULL, NULL, 'scrypt$1fa161cc3bec83eb3148b994aec6a1ca$a873f243815c712f8893fdc29798cb929e6a53294f9e82a19de222ed52e9b75ee4f966f7e19548546994f68c281ca5ccc73513ff1fcfc2fdbe7245ef81eaa4f0', 'student'),
+    ('Oybek', NULL, NULL, 'scrypt$1fa161cc3bec83eb3148b994aec6a1ca$a873f243815c712f8893fdc29798cb929e6a53294f9e82a19de222ed52e9b75ee4f966f7e19548546994f68c281ca5ccc73513ff1fcfc2fdbe7245ef81eaa4f0', 'student'),
+    ('Ansor', NULL, NULL, 'scrypt$1fa161cc3bec83eb3148b994aec6a1ca$a873f243815c712f8893fdc29798cb929e6a53294f9e82a19de222ed52e9b75ee4f966f7e19548546994f68c281ca5ccc73513ff1fcfc2fdbe7245ef81eaa4f0', 'student'),
+    ('Abdulazim', NULL, NULL, 'scrypt$1fa161cc3bec83eb3148b994aec6a1ca$a873f243815c712f8893fdc29798cb929e6a53294f9e82a19de222ed52e9b75ee4f966f7e19548546994f68c281ca5ccc73513ff1fcfc2fdbe7245ef81eaa4f0', 'student'),
+    ('Muhammadali', NULL, NULL, 'scrypt$1fa161cc3bec83eb3148b994aec6a1ca$a873f243815c712f8893fdc29798cb929e6a53294f9e82a19de222ed52e9b75ee4f966f7e19548546994f68c281ca5ccc73513ff1fcfc2fdbe7245ef81eaa4f0', 'student'),
+    ('Abdulqahhor', NULL, NULL, 'scrypt$1fa161cc3bec83eb3148b994aec6a1ca$a873f243815c712f8893fdc29798cb929e6a53294f9e82a19de222ed52e9b75ee4f966f7e19548546994f68c281ca5ccc73513ff1fcfc2fdbe7245ef81eaa4f0', 'student'),
+    ('Saidakbar', NULL, NULL, 'scrypt$1fa161cc3bec83eb3148b994aec6a1ca$a873f243815c712f8893fdc29798cb929e6a53294f9e82a19de222ed52e9b75ee4f966f7e19548546994f68c281ca5ccc73513ff1fcfc2fdbe7245ef81eaa4f0', 'student'),
+    ('Emirhan', NULL, NULL, 'scrypt$1fa161cc3bec83eb3148b994aec6a1ca$a873f243815c712f8893fdc29798cb929e6a53294f9e82a19de222ed52e9b75ee4f966f7e19548546994f68c281ca5ccc73513ff1fcfc2fdbe7245ef81eaa4f0', 'student'),
+    ('Akbarhoja', NULL, NULL, 'scrypt$1fa161cc3bec83eb3148b994aec6a1ca$a873f243815c712f8893fdc29798cb929e6a53294f9e82a19de222ed52e9b75ee4f966f7e19548546994f68c281ca5ccc73513ff1fcfc2fdbe7245ef81eaa4f0', 'student'),
+    ('Yahyo', NULL, NULL, 'scrypt$1fa161cc3bec83eb3148b994aec6a1ca$a873f243815c712f8893fdc29798cb929e6a53294f9e82a19de222ed52e9b75ee4f966f7e19548546994f68c281ca5ccc73513ff1fcfc2fdbe7245ef81eaa4f0', 'student');
+
   -- Insert Teams
   INSERT INTO public.teams (name, short_name, color, sort_order)
   VALUES ('Team Inquirers', 'Team 1', '#7C3AED', 1)

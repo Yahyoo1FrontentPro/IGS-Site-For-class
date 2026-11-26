@@ -9,6 +9,10 @@ export const BUILTIN_ADMIN_USERNAME = "Yahyoo_Erikovich";
 export const BUILTIN_ADMIN_PASSWORD_HASH =
   "scrypt$90d198582807636394c51b005d8d2cec$29daa76500aac959de23d6b12f719a2d8d8302f0cafd0fe647e220d1ed4e27ba0c4f4cbde1c6491cafc619245f5b9a9b74bb4f6b149cb1b14e5911986455a02b";
 
+// Default initial password hash (12345678) for all class students (changeable anytime at /account)
+export const DEFAULT_STUDENT_PASSWORD_HASH =
+  "scrypt$1fa161cc3bec83eb3148b994aec6a1ca$a873f243815c712f8893fdc29798cb929e6a53294f9e82a19de222ed52e9b75ee4f966f7e19548546994f68c281ca5ccc73513ff1fcfc2fdbe7245ef81eaa4f0";
+
 function getSigningSecret(): string {
   const candidates = [
     process.env.SESSION_SECRET,

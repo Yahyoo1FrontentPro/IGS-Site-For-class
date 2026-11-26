@@ -1,5 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
-import { isAdminAuthenticated } from "@/lib/auth";
+import {
+  DEFAULT_STUDENT_PASSWORD_HASH,
+  isAdminAuthenticated,
+} from "@/lib/auth";
 import {
   generateId,
   readLocalStore,
@@ -43,6 +46,22 @@ export async function POST(req: NextRequest) {
         );
       }
 
+      // Auto-create student login account with default password (12345678) if username is available
+      const safeUsername = name.replace(/\s+/g, "_");
+      const { data: existingAcc } = await supabase
+        .from("app_users")
+        .select("id")
+        .eq("username_lower", safeUsername.toLowerCase())
+        .maybeSingle();
+
+      if (!existingAcc) {
+        await supabase.from("app_users").insert({
+          username: safeUsername,
+          password_hash: DEFAULT_STUDENT_PASSWORD_HASH,
+          role: "student",
+        });
+      }
+
       return NextResponse.json({ student: data });
     }
 
@@ -55,6 +74,21 @@ export async function POST(req: NextRequest) {
       created_at: new Date().toISOString(),
     };
     store.students.push(created);
+
+    const safeUsername = name.replace(/\s+/g, "_");
+    if (!store.appUsers.some((u) => u.username_lower === safeUsername.toLowerCase())) {
+      store.appUsers.push({
+        id: generateId(),
+        username: safeUsername,
+        username_lower: safeUsername.toLowerCase(),
+        phone: null,
+        phone_normalized: null,
+        password_hash: DEFAULT_STUDENT_PASSWORD_HASH,
+        role: "student",
+        created_at: new Date().toISOString(),
+      });
+    }
+
     writeLocalStore(store);
 
     return NextResponse.json({ student: created });
