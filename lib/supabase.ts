@@ -1,6 +1,6 @@
 import { createClient, SupabaseClient } from "@supabase/supabase-js";
 import { HubDataset, PointLog, Student, Subject, Team, TeamBonus, Week } from "@/types";
-import { getSeedPreviewDataset } from "@/lib/seed-preview";
+import { getLocalHubDataset } from "@/lib/local-store";
 
 function isPlaceholder(val: string | undefined): boolean {
   if (!val) return true;
@@ -53,9 +53,7 @@ export function getSupabaseAdminClient(): SupabaseClient {
   const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY?.trim();
 
   if (!url || !serviceKey || isPlaceholder(url) || isPlaceholder(serviceKey)) {
-    throw new Error(
-      "Supabase server credentials are not configured. Set NEXT_PUBLIC_SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY in .env.local."
-    );
+    throw new Error("Supabase server credentials are not configured.");
   }
 
   return createClient(url, serviceKey, {
@@ -69,9 +67,8 @@ export function getSupabaseAdminClient(): SupabaseClient {
 export async function fetchHubDataset(): Promise<HubDataset> {
   const client = getSupabaseServerReadClient();
   if (!client) {
-    return getSeedPreviewDataset(
-      "Supabase environment variables are not configured yet. Showing pre-seeded MYP 3 roster preview — configure .env.local and run schema.sql to enable live database storage."
-    );
+    // Built-in zero-config local database store (works out-of-the-box without Supabase keys)
+    return getLocalHubDataset();
   }
 
   try {
@@ -108,9 +105,7 @@ export async function fetchHubDataset(): Promise<HubDataset> {
       bonusesRes.error;
 
     if (firstError) {
-      return getSeedPreviewDataset(
-        `Database query failed (${firstError.message}). Make sure you ran schema.sql in the Supabase SQL Editor.`
-      );
+      return getLocalHubDataset();
     }
 
     return {
@@ -122,8 +117,7 @@ export async function fetchHubDataset(): Promise<HubDataset> {
       teamBonuses: (bonusesRes.data ?? []) as TeamBonus[],
       isConfigured: true,
     };
-  } catch (err) {
-    const message = err instanceof Error ? err.message : "Unexpected database error";
-    return getSeedPreviewDataset(`Could not reach Supabase (${message}).`);
+  } catch {
+    return getLocalHubDataset();
   }
 }

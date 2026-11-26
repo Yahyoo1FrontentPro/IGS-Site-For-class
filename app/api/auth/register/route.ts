@@ -5,6 +5,11 @@ import {
   SESSION_COOKIE_NAME,
 } from "@/lib/auth";
 import {
+  generateId,
+  readLocalStore,
+  writeLocalStore,
+} from "@/lib/local-store";
+import {
   hashPassword,
   isValidPhone,
   isValidUsername,
@@ -14,16 +19,6 @@ import { getSupabaseAdminClient, isSupabaseAdminConfigured } from "@/lib/supabas
 import { SessionUser } from "@/types";
 
 export async function POST(req: NextRequest) {
-  if (!isSupabaseAdminConfigured()) {
-    return NextResponse.json(
-      {
-        error:
-          "Supabase database credentials are not configured yet. Connect NEXT_PUBLIC_SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY in Render / .env.local and run schema.sql.",
-      },
-      { status: 500 }
-    );
-  }
-
   try {
     const body = (await req.json()) as {
       phone?: unknown;
@@ -67,80 +62,122 @@ export async function POST(req: NextRequest) {
     }
 
     const phoneNormalized = normalizePhone(rawPhone);
-    const supabase = getSupabaseAdminClient();
+    const passwordHash = hashPassword(password);
 
-    // Check if username or phone already exists
-    const [{ data: existingUser }, { data: existingPhone }] = await Promise.all([
-      supabase
-        .from("app_users")
-        .select("id")
-        .eq("username_lower", username.toLowerCase())
-        .maybeSingle(),
-      supabase
-        .from("app_users")
-        .select("id")
-        .eq("phone_normalized", phoneNormalized)
-        .maybeSingle(),
-    ]);
+    if (isSupabaseAdminConfigured()) {
+      const supabase = getSupabaseAdminClient();
 
-    if (existingUser) {
+      const [{ data: existingUser }, { data: existingPhone }] = await Promise.all([
+        supabase
+          .from("app_users")
+          .select("id")
+          .eq("username_lower", username.toLowerCase())
+          .maybeSingle(),
+        supabase
+          .from("app_users")
+          .select("id")
+          .eq("phone_normalized", phoneNormalized)
+          .maybeSingle(),
+      ]);
+
+      if (existingUser) {
+        return NextResponse.json(
+          { error: "That username is already taken. Please choose another." },
+          { status: 409 }
+        );
+      }
+
+      if (existingPhone) {
+        return NextResponse.json(
+          { error: "An account with this phone number already exists. Please log in." },
+          { status: 409 }
+        );
+      }
+
+      const { data: created, error } = await supabase
+        .from("app_users")
+        .insert({
+          username,
+          phone: rawPhone,
+          phone_normalized: phoneNormalized,
+          password_hash: passwordHash,
+          role: "student",
+        })
+        .select("id, username, phone, role")
+        .single();
+
+      if (error || !created) {
+        return NextResponse.json(
+          { error: error?.message ?? "Could not create account." },
+          { status: 500 }
+        );
+      }
+
+      const sessionUser: SessionUser = {
+        id: created.id as string,
+        username: created.username as string,
+        phone: (created.phone as string | null) ?? rawPhone,
+        role: (created.role as "admin" | "student") ?? "student",
+      };
+
+      const response = NextResponse.json({ user: sessionUser });
+      response.cookies.set({
+        name: SESSION_COOKIE_NAME,
+        value: createSessionCookieValue(sessionUser),
+        httpOnly: true,
+        sameSite: "lax",
+        secure: process.env.NODE_ENV === "production",
+        path: "/",
+        maxAge: 60 * 60 * 24 * 14,
+      });
+      return response;
+    }
+
+    // Zero-config built-in store fallback
+    const store = readLocalStore();
+    if (store.appUsers.some((u) => u.username_lower === username.toLowerCase())) {
       return NextResponse.json(
         { error: "That username is already taken. Please choose another." },
         { status: 409 }
       );
     }
-
-    if (existingPhone) {
+    if (store.appUsers.some((u) => u.phone_normalized === phoneNormalized)) {
       return NextResponse.json(
         { error: "An account with this phone number already exists. Please log in." },
         { status: 409 }
       );
     }
 
-    const passwordHash = hashPassword(password);
-
-    const { data: created, error } = await supabase
-      .from("app_users")
-      .insert({
-        username,
-        phone: rawPhone,
-        phone_normalized: phoneNormalized,
-        password_hash: passwordHash,
-        role: "student",
-      })
-      .select("id, username, phone, role")
-      .single();
-
-    if (error || !created) {
-      return NextResponse.json(
-        {
-          error:
-            error?.message ??
-            "Could not create account. Ensure you ran the updated schema.sql in Supabase.",
-        },
-        { status: 500 }
-      );
-    }
+    const newUser = {
+      id: generateId(),
+      username,
+      username_lower: username.toLowerCase(),
+      phone: rawPhone,
+      phone_normalized: phoneNormalized,
+      password_hash: passwordHash,
+      role: "student" as const,
+      created_at: new Date().toISOString(),
+    };
+    store.appUsers.push(newUser);
+    writeLocalStore(store);
 
     const sessionUser: SessionUser = {
-      id: created.id as string,
-      username: created.username as string,
-      phone: (created.phone as string | null) ?? rawPhone,
-      role: (created.role as "admin" | "student") ?? "student",
+      id: newUser.id,
+      username: newUser.username,
+      phone: newUser.phone,
+      role: newUser.role,
     };
 
-    const cookieVal = createSessionCookieValue(sessionUser);
     const response = NextResponse.json({ user: sessionUser });
     response.cookies.set({
       name: SESSION_COOKIE_NAME,
-      value: cookieVal,
+      value: createSessionCookieValue(sessionUser),
       httpOnly: true,
       sameSite: "lax",
       secure: process.env.NODE_ENV === "production",
       path: "/",
       maxAge: 60 * 60 * 24 * 14,
     });
-
     return response;
   } catch {
     return NextResponse.json(

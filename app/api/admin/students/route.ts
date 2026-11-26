@@ -1,16 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
 import { isAdminAuthenticated } from "@/lib/auth";
+import {
+  generateId,
+  readLocalStore,
+  writeLocalStore,
+} from "@/lib/local-store";
 import { getSupabaseAdminClient, isSupabaseAdminConfigured } from "@/lib/supabase";
 
 export async function POST(req: NextRequest) {
   if (!isAdminAuthenticated()) {
     return NextResponse.json({ error: "Unauthorized." }, { status: 401 });
-  }
-  if (!isSupabaseAdminConfigured()) {
-    return NextResponse.json(
-      { error: "Supabase Service Role Key is not configured." },
-      { status: 500 }
-    );
   }
 
   try {
@@ -25,25 +24,40 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const supabase = getSupabaseAdminClient();
-    const { data, error } = await supabase
-      .from("students")
-      .insert({
-        name,
-        team_id: teamId,
-        is_active: true,
-      })
-      .select("*")
-      .single();
+    if (isSupabaseAdminConfigured()) {
+      const supabase = getSupabaseAdminClient();
+      const { data, error } = await supabase
+        .from("students")
+        .insert({
+          name,
+          team_id: teamId,
+          is_active: true,
+        })
+        .select("*")
+        .single();
 
-    if (error || !data) {
-      return NextResponse.json(
-        { error: error?.message ?? "Failed to add student." },
-        { status: 500 }
-      );
+      if (error || !data) {
+        return NextResponse.json(
+          { error: error?.message ?? "Failed to add student." },
+          { status: 500 }
+        );
+      }
+
+      return NextResponse.json({ student: data });
     }
 
-    return NextResponse.json({ student: data });
+    const store = readLocalStore();
+    const created = {
+      id: generateId(),
+      name,
+      team_id: teamId,
+      is_active: true,
+      created_at: new Date().toISOString(),
+    };
+    store.students.push(created);
+    writeLocalStore(store);
+
+    return NextResponse.json({ student: created });
   } catch (err) {
     const message = err instanceof Error ? err.message : "Server error";
     return NextResponse.json({ error: message }, { status: 500 });
@@ -53,12 +67,6 @@ export async function POST(req: NextRequest) {
 export async function PATCH(req: NextRequest) {
   if (!isAdminAuthenticated()) {
     return NextResponse.json({ error: "Unauthorized." }, { status: 401 });
-  }
-  if (!isSupabaseAdminConfigured()) {
-    return NextResponse.json(
-      { error: "Supabase Service Role Key is not configured." },
-      { status: 500 }
-    );
   }
 
   try {
@@ -89,22 +97,36 @@ export async function PATCH(req: NextRequest) {
       return NextResponse.json({ error: "No valid fields to update." }, { status: 400 });
     }
 
-    const supabase = getSupabaseAdminClient();
-    const { data, error } = await supabase
-      .from("students")
-      .update(updates)
-      .eq("id", studentId)
-      .select("*")
-      .single();
+    if (isSupabaseAdminConfigured()) {
+      const supabase = getSupabaseAdminClient();
+      const { data, error } = await supabase
+        .from("students")
+        .update(updates)
+        .eq("id", studentId)
+        .select("*")
+        .single();
 
-    if (error || !data) {
-      return NextResponse.json(
-        { error: error?.message ?? "Failed to update student." },
-        { status: 500 }
-      );
+      if (error || !data) {
+        return NextResponse.json(
+          { error: error?.message ?? "Failed to update student." },
+          { status: 500 }
+        );
+      }
+
+      return NextResponse.json({ student: data });
     }
 
-    return NextResponse.json({ student: data });
+    const store = readLocalStore();
+    const target = store.students.find((s) => s.id === studentId);
+    if (!target) {
+      return NextResponse.json({ error: "Student not found." }, { status: 404 });
+    }
+    if (typeof updates.name === "string") target.name = updates.name;
+    if (typeof updates.team_id === "string") target.team_id = updates.team_id;
+    if (typeof updates.is_active === "boolean") target.is_active = updates.is_active;
+    writeLocalStore(store);
+
+    return NextResponse.json({ student: target });
   } catch (err) {
     const message = err instanceof Error ? err.message : "Server error";
     return NextResponse.json({ error: message }, { status: 500 });

@@ -5,6 +5,7 @@ import {
   createSessionCookieValue,
   SESSION_COOKIE_NAME,
 } from "@/lib/auth";
+import { readLocalStore } from "@/lib/local-store";
 import { normalizePhone, verifyPassword } from "@/lib/password";
 import { getSupabaseAdminClient, isSupabaseAdminConfigured } from "@/lib/supabase";
 import { SessionUser } from "@/types";
@@ -27,11 +28,12 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    const lowerId = identifier.toLowerCase();
+    const digitsOnly = normalizePhone(identifier);
+
     // 1. If Supabase is configured, authenticate against app_users table
     if (isSupabaseAdminConfigured()) {
       const supabase = getSupabaseAdminClient();
-      const lowerId = identifier.toLowerCase();
-      const digitsOnly = normalizePhone(identifier);
 
       const { data: byUsername } = await supabase
         .from("app_users")
@@ -79,7 +81,6 @@ export async function POST(req: NextRequest) {
         return response;
       }
 
-      // Auto-provision primary admin if app_users exists or if signing in as Yahyoo_Erikovich before seeding
       if (
         lowerId === BUILTIN_ADMIN_USERNAME.toLowerCase() &&
         verifyPassword(password, BUILTIN_ADMIN_PASSWORD_HASH)
@@ -95,7 +96,7 @@ export async function POST(req: NextRequest) {
           .maybeSingle();
 
         const sessionUser: SessionUser = {
-          id: (seededAdmin?.id as string | undefined) ?? "builtin-admin-yahyo",
+          id: (seededAdmin?.id as string | undefined) ?? "admin-yahyo-primary",
           username: BUILTIN_ADMIN_USERNAME,
           phone: (seededAdmin?.phone as string | null) ?? null,
           role: "admin",
@@ -120,35 +121,39 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // 2. Preview Mode fallback (before Supabase is connected): allow Yahyoo_Erikovich login
-    if (
-      identifier.toLowerCase() === BUILTIN_ADMIN_USERNAME.toLowerCase() &&
-      verifyPassword(password, BUILTIN_ADMIN_PASSWORD_HASH)
-    ) {
-      const sessionUser: SessionUser = {
-        id: "builtin-admin-yahyo",
-        username: BUILTIN_ADMIN_USERNAME,
-        phone: null,
-        role: "admin",
-      };
+    // 2. Zero-config built-in store authentication (supports all registered users + Yahyoo_Erikovich)
+    const store = readLocalStore();
+    const localMatch = store.appUsers.find(
+      (u) =>
+        u.username_lower === lowerId ||
+        (digitsOnly.length >= 7 && u.phone_normalized === digitsOnly)
+    );
 
-      const response = NextResponse.json({ user: sessionUser });
-      response.cookies.set({
-        name: SESSION_COOKIE_NAME,
-        value: createSessionCookieValue(sessionUser),
-        httpOnly: true,
-        sameSite: "lax",
-        secure: process.env.NODE_ENV === "production",
-        path: "/",
-        maxAge: 60 * 60 * 24 * 14,
-      });
-      return response;
+    if (!localMatch || !verifyPassword(password, localMatch.password_hash)) {
+      return NextResponse.json(
+        { error: "Incorrect phone/username or password." },
+        { status: 401 }
+      );
     }
 
-    return NextResponse.json(
-      { error: "Incorrect phone/username or password." },
-      { status: 401 }
-    );
+    const sessionUser: SessionUser = {
+      id: localMatch.id,
+      username: localMatch.username,
+      phone: localMatch.phone,
+      role: localMatch.role,
+    };
+
+    const response = NextResponse.json({ user: sessionUser });
+    response.cookies.set({
+      name: SESSION_COOKIE_NAME,
+      value: createSessionCookieValue(sessionUser),
+      httpOnly: true,
+      sameSite: "lax",
+      secure: process.env.NODE_ENV === "production",
+      path: "/",
+      maxAge: 60 * 60 * 24 * 14,
+    });
+    return response;
   } catch {
     return NextResponse.json(
       { error: "Invalid login payload." },
