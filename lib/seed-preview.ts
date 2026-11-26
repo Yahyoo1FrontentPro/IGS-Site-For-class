@@ -1,78 +1,37 @@
-import { HubDataset, Student, Subject, Team, Week } from "@/types";
+import { HubDataset, Student, Subject, Week } from "@/types";
+
+export const INITIAL_STUDENT_NAMES = [
+  "Yasmina",
+  "Charos",
+  "Ezoza",
+  "Diyora",
+  "Fazliya",
+  "Sofiya",
+  "Azam",
+  "Abdulmajid",
+  "Jahongir",
+  "Javhar",
+  "Oybek",
+  "Ansor",
+  "Abdulazim",
+  "Muhammadali",
+  "Abdulqahhor",
+  "Saidakbar",
+  "Emirhan",
+  "Akbarhoja",
+  "Yahyo",
+];
 
 export function getSeedPreviewDataset(errorMessage?: string): HubDataset {
   const nowIso = new Date().toISOString();
   const todayStr = nowIso.slice(0, 10);
 
-  const teams: Team[] = [
-    {
-      id: "team-1-inquirers",
-      name: "Team Inquirers",
-      short_name: "Team 1",
-      color: "#7C3AED",
-      sort_order: 1,
-      created_at: nowIso,
-    },
-    {
-      id: "team-2-thinkers",
-      name: "Team Thinkers",
-      short_name: "Team 2",
-      color: "#2563EB",
-      sort_order: 2,
-      created_at: nowIso,
-    },
-    {
-      id: "team-3-principled",
-      name: "Team Principled",
-      short_name: "Team 3",
-      color: "#059669",
-      sort_order: 3,
-      created_at: nowIso,
-    },
-  ];
-
-  const team1Members = ["Yasmina", "Charos", "Ezoza", "Diyora", "Fazliya", "Sofiya"];
-  const team2Members = [
-    "Azam",
-    "Abdulmajid",
-    "Jahongir",
-    "Javhar",
-    "Oybek",
-    "Ansor",
-    "Abdulazim",
-  ];
-  const team3Members = [
-    "Muhammadali",
-    "Abdulqahhor",
-    "Saidakbar",
-    "Emirhan",
-    "Akbarhoja",
-    "Yahyo",
-  ];
-
-  const students: Student[] = [
-    ...team1Members.map((name, i) => ({
-      id: `s-t1-${i + 1}`,
-      name,
-      team_id: "team-1-inquirers",
-      is_active: true,
-      created_at: nowIso,
-    })),
-    ...team2Members.map((name, i) => ({
-      id: `s-t2-${i + 1}`,
-      name,
-      team_id: "team-2-thinkers",
-      is_active: true,
-      created_at: nowIso,
-    })),
-    ...team3Members.map((name, i) => ({
-      id: `s-t3-${i + 1}`,
-      name,
-      team_id: "team-3-principled",
-      is_active: true,
-      created_at: nowIso,
-    })),
-  ];
+  const students: Student[] = INITIAL_STUDENT_NAMES.map((name, idx) => ({
+    id: `student-${idx + 1}`,
+    name,
+    is_active: true,
+    created_at: nowIso,
+  }));
 
   const subjects: Subject[] = [
     {
@@ -153,12 +112,11 @@ export function getSeedPreviewDataset(errorMessage?: string): HubDataset {
   ];
 
   return {
-    teams,
     students,
     subjects,
     weeks,
     pointLogs: [],
-    teamBonuses: [],
+    schedules: [],
     isConfigured: false,
     errorMessage,
   };

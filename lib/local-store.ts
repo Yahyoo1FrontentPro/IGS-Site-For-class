@@ -4,12 +4,11 @@ import path from "path";
 import crypto from "crypto";
 import {
   AppUserSummary,
+  ClassSchedule,
   HubDataset,
   PointLog,
   Student,
   Subject,
-  Team,
-  TeamBonus,
   UserRole,
   Week,
 } from "@/types";
@@ -33,15 +32,17 @@ export interface StoredAppUser {
 
 export interface LocalStoreData {
   appUsers: StoredAppUser[];
-  teams: Team[];
   students: Student[];
   subjects: Subject[];
   weeks: Week[];
   pointLogs: PointLog[];
-  teamBonuses: TeamBonus[];
+  schedules: ClassSchedule[];
 }
 
-const STORE_FILE_PATH = path.join(os.tmpdir(), "igs-myp3-activity-hub-data-v1.json");
+const STORE_FILE_PATH = path.join(
+  os.tmpdir(),
+  "igs-myp3-solo-hub-data-v2.json"
+);
 
 function createInitialStore(): LocalStoreData {
   const seed = getSeedPreviewDataset();
@@ -70,12 +71,11 @@ function createInitialStore(): LocalStoreData {
         created_at: nowIso,
       })),
     ],
-    teams: seed.teams,
     students: seed.students,
     subjects: seed.subjects,
     weeks: seed.weeks,
     pointLogs: [],
-    teamBonuses: [],
+    schedules: [],
   };
 }
 
@@ -88,10 +88,13 @@ export function readLocalStore(): LocalStoreData {
     }
     const raw = fs.readFileSync(STORE_FILE_PATH, "utf8");
     const parsed = JSON.parse(raw) as LocalStoreData;
-    if (!parsed || !Array.isArray(parsed.teams) || !Array.isArray(parsed.appUsers)) {
+    if (!parsed || !Array.isArray(parsed.students) || !Array.isArray(parsed.appUsers)) {
       const initial = createInitialStore();
       fs.writeFileSync(STORE_FILE_PATH, JSON.stringify(initial, null, 2), "utf8");
       return initial;
+    }
+    if (!Array.isArray(parsed.schedules)) {
+      parsed.schedules = [];
     }
     return parsed;
   } catch {
@@ -103,7 +106,7 @@ export function writeLocalStore(data: LocalStoreData): void {
   try {
     fs.writeFileSync(STORE_FILE_PATH, JSON.stringify(data, null, 2), "utf8");
   } catch {
-    // Ignore write errors in read-only edge environments
+    // Ignore write errors in read-only environments
   }
 }
 
@@ -114,14 +117,15 @@ export function generateId(): string {
 export function getLocalHubDataset(): HubDataset {
   const store = readLocalStore();
   return {
-    teams: [...store.teams].sort((a, b) => a.sort_order - b.sort_order),
     students: [...store.students].sort((a, b) => a.name.localeCompare(b.name)),
     subjects: [...store.subjects].sort((a, b) => a.sort_order - b.sort_order),
     weeks: [...store.weeks].sort((a, b) => a.week_number - b.week_number),
     pointLogs: [...store.pointLogs].sort(
       (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
     ),
-    teamBonuses: [...store.teamBonuses].sort((a, b) => b.date.localeCompare(a.date)),
+    schedules: [...store.schedules].sort(
+      (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+    ),
     isConfigured: true,
   };
 }

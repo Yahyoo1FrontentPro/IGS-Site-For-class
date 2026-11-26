@@ -12,66 +12,68 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
-import { FairnessMode, TeamStanding } from "@/types";
+import { StudentScoreRow } from "@/types";
 
-interface TeamRaceChartProps {
-  standings: TeamStanding[];
-  fairnessMode: FairnessMode;
+interface SoloRaceChartProps {
+  leaderboard: StudentScoreRow[];
+  maxBars?: number;
   height?: number;
   tvMode?: boolean;
 }
 
 interface ChartDatum {
   name: string;
-  shortName: string;
+  studentName: string;
   value: number;
-  averagePoints: number;
-  totalPoints: number;
-  memberCount: number;
-  comboCount: number;
-  color: string;
   rank: number;
+  activeCount: number;
+  starCount: number;
+  aceCount: number;
+  dutyCount: number;
+  color: string;
   displayLabel: string;
 }
 
-export function TeamRaceChart({
-  standings,
-  fairnessMode,
-  height = 240,
+function getRankColor(rank: number, hasPoints: boolean): string {
+  if (!hasPoints) return "#64748B";
+  if (rank === 1) return "#F59E0B"; // Gold
+  if (rank === 2) return "#6366F1"; // Indigo
+  if (rank === 3) return "#10B981"; // Emerald
+  return "#2563EB"; // Royal Blue
+}
+
+export function SoloRaceChart({
+  leaderboard,
+  maxBars = 8,
+  height = 290,
   tvMode = false,
-}: TeamRaceChartProps) {
+}: SoloRaceChartProps) {
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
     setMounted(true);
   }, []);
 
-  const data: ChartDatum[] = standings.map((s) => {
-    const val = fairnessMode === "average" ? s.averagePoints : s.totalPoints;
-    const displayLabel =
-      fairnessMode === "average"
-        ? `${s.averagePoints.toFixed(2)} avg (${s.totalPoints} pts)`
-        : `${s.totalPoints} pts (${s.averagePoints.toFixed(2)} avg)`;
+  const topRows = leaderboard.slice(0, maxBars);
 
-    return {
-      name: `#${s.rank} ${s.team.name}`,
-      shortName: s.team.short_name,
-      value: Math.max(0, val),
-      averagePoints: s.averagePoints,
-      totalPoints: s.totalPoints,
-      memberCount: s.memberCount,
-      comboCount: s.comboCount,
-      color: s.team.color,
-      rank: s.rank,
-      displayLabel,
-    };
-  });
+  const data: ChartDatum[] = topRows.map((row) => ({
+    name: `#${row.rank} ${row.student.name}`,
+    studentName: row.student.name,
+    value: Math.max(0, row.totalPoints),
+    rank: row.rank,
+    activeCount: row.activeCount,
+    starCount: row.starCount,
+    aceCount: row.aceCount,
+    dutyCount: row.dutyCount,
+    color: getRankColor(row.rank, row.totalPoints > 0),
+    displayLabel: `${row.totalPoints} pts`,
+  }));
 
   if (!mounted) {
     return (
       <div
         style={{ height }}
-        className="w-full rounded-xl bg-slate-100/80 dark:bg-navy-800/50 animate-pulse"
+        className="w-full animate-pulse rounded-xl bg-slate-100/80 dark:bg-navy-800/50"
       />
     );
   }
@@ -86,16 +88,18 @@ export function TeamRaceChart({
           layout="vertical"
           margin={{
             top: 8,
-            right: tvMode ? 170 : 140,
-            left: tvMode ? 20 : 8,
+            right: tvMode ? 110 : 85,
+            left: tvMode ? 16 : 8,
             bottom: 8,
           }}
-          barCategoryGap={tvMode ? "24%" : "28%"}
+          barCategoryGap="22%"
         >
           <CartesianGrid
             strokeDasharray="3 3"
             horizontal={false}
-            stroke={tvMode ? "rgba(148, 163, 184, 0.18)" : "rgba(148, 163, 184, 0.25)"}
+            stroke={
+              tvMode ? "rgba(148, 163, 184, 0.18)" : "rgba(148, 163, 184, 0.25)"
+            }
           />
           <XAxis
             type="number"
@@ -110,10 +114,10 @@ export function TeamRaceChart({
           <YAxis
             type="category"
             dataKey="name"
-            width={tvMode ? 220 : 175}
+            width={tvMode ? 190 : 150}
             tick={{
-              fill: tvMode ? "#f8fafc" : "#64748b",
-              fontSize: tvMode ? 17 : 13,
+              fill: tvMode ? "#f8fafc" : "#475569",
+              fontSize: tvMode ? 16 : 12,
               fontWeight: 700,
             }}
             axisLine={false}
@@ -126,34 +130,19 @@ export function TeamRaceChart({
               const item = payload[0].payload as ChartDatum;
               return (
                 <div className="rounded-xl border border-slate-200 bg-white px-4 py-3 shadow-xl dark:border-slate-700 dark:bg-navy-900">
-                  <div className="flex items-center gap-2 font-bold text-slate-900 dark:text-white">
-                    <span
-                      className="inline-block h-3 w-3 rounded-full"
-                      style={{ backgroundColor: item.color }}
-                    />
-                    <span>{item.name}</span>
-                  </div>
-                  <div className="mt-1.5 space-y-0.5 text-xs text-slate-600 dark:text-slate-300">
-                    <p>
-                      Fair Average:{" "}
-                      <strong className="text-slate-900 dark:text-white">
-                        {item.averagePoints.toFixed(2)} pts / student
-                      </strong>
-                    </p>
-                    <p>
-                      Total Points:{" "}
-                      <strong className="text-slate-900 dark:text-white">
-                        {item.totalPoints} pts
-                      </strong>{" "}
-                      ({item.memberCount} active members)
-                    </p>
-                    <p>
-                      Combo Streaks:{" "}
-                      <strong className="text-amber-600 dark:text-amber-400">
-                        {item.comboCount}x (+{item.comboCount * 5} pts)
-                      </strong>
-                    </p>
-                  </div>
+                  <p className="font-bold text-slate-900 dark:text-white">
+                    {item.name}
+                  </p>
+                  <p className="mt-1 text-xs text-slate-600 dark:text-slate-300">
+                    Total Score:{" "}
+                    <strong className="text-slate-900 dark:text-white">
+                      {item.value} pts
+                    </strong>
+                  </p>
+                  <p className="mt-0.5 text-[11px] text-slate-500 dark:text-slate-400">
+                    Active ×{item.activeCount} • Star ×{item.starCount} • Ace ×
+                    {item.aceCount} • Duty ×{item.dutyCount}
+                  </p>
                 </div>
               );
             }}
@@ -162,7 +151,7 @@ export function TeamRaceChart({
             dataKey="value"
             radius={[0, 10, 10, 0]}
             isAnimationActive={true}
-            animationDuration={750}
+            animationDuration={700}
           >
             {data.map((entry) => (
               <Cell key={entry.name} fill={entry.color} />
@@ -172,7 +161,7 @@ export function TeamRaceChart({
               position="right"
               style={{
                 fill: tvMode ? "#f1f5f9" : "#475569",
-                fontSize: tvMode ? 15 : 12,
+                fontSize: tvMode ? 14 : 12,
                 fontWeight: 700,
               }}
             />

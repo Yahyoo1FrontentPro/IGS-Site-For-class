@@ -1,8 +1,32 @@
 export type PointCategory = "Active" | "Star" | "Ace" | "Duty" | "Fair-Play";
 
-export type FairnessMode = "average" | "total";
-
 export type UserRole = "admin" | "student";
+
+export type DayOfWeek =
+  | "Monday"
+  | "Tuesday"
+  | "Wednesday"
+  | "Thursday"
+  | "Friday"
+  | "Saturday";
+
+export interface ScheduleLesson {
+  id: string;
+  day: DayOfWeek;
+  period: number;
+  time: string;
+  subject: string;
+  roomOrTeacher?: string;
+}
+
+export interface ClassSchedule {
+  id: string;
+  title: string;
+  image_url: string | null;
+  entries: ScheduleLesson[];
+  is_active: boolean;
+  created_at: string;
+}
 
 export interface SessionUser {
   id: string;
@@ -19,19 +43,9 @@ export interface AppUserSummary {
   created_at: string;
 }
 
-export interface Team {
-  id: string;
-  name: string;
-  short_name: string;
-  color: string;
-  sort_order: number;
-  created_at: string;
-}
-
 export interface Student {
   id: string;
   name: string;
-  team_id: string;
   is_active: boolean;
   created_at: string;
 }
@@ -59,7 +73,6 @@ export interface Week {
 export interface PointLog {
   id: string;
   student_id: string;
-  team_id: string;
   subject_id: string;
   week_id: string;
   points: number;
@@ -69,41 +82,18 @@ export interface PointLog {
   created_at: string;
 }
 
-export interface TeamBonus {
-  id: string;
-  team_id: string;
-  week_id: string;
-  date: string;
-  points: number;
-  reason: string;
-  created_at: string;
-}
-
 export interface HubDataset {
-  teams: Team[];
   students: Student[];
   subjects: Subject[];
   weeks: Week[];
   pointLogs: PointLog[];
-  teamBonuses: TeamBonus[];
+  schedules: ClassSchedule[];
   isConfigured: boolean;
   errorMessage?: string;
 }
 
-export interface TeamStanding {
-  team: Team;
-  memberCount: number;
-  studentPoints: number;
-  bonusPoints: number;
-  comboCount: number;
-  totalPoints: number;
-  averagePoints: number;
-  rank: number;
-}
-
 export interface StudentScoreRow {
   student: Student;
-  team: Team;
   totalPoints: number;
   positivePoints: number;
   penaltyPoints: number;
@@ -119,7 +109,6 @@ export interface StudentScoreRow {
 export interface SubjectChampion {
   subject: Subject;
   student: Student | null;
-  team: Team | null;
   points: number;
   tiedCount: number;
 }
@@ -128,7 +117,6 @@ export interface MostImprovedResult {
   hasPreviousWeek: boolean;
   previousWeekName: string | null;
   student: Student | null;
-  team: Team | null;
   currentPoints: number;
   previousPoints: number;
   delta: number;
@@ -136,10 +124,8 @@ export interface MostImprovedResult {
 
 export interface ActivityFeedItem {
   id: string;
-  type: "point" | "bonus";
-  studentName?: string;
-  team: Team;
-  subjectName?: string;
+  studentName: string;
+  subjectName: string;
   category: string;
   points: number;
   reason: string | null;

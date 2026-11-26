@@ -8,22 +8,23 @@ import {
   ArrowLeft,
   BookOpen,
   Calendar,
+  CalendarDays,
   Check,
   CheckCircle2,
   Edit3,
   Eye,
   EyeOff,
-  Flame,
+  ImagePlus,
   KeyRound,
   Loader2,
   LogOut,
   Phone,
   Plus,
   RotateCcw,
+  Search,
   Settings,
   ShieldAlert,
   ShieldCheck,
-  Sparkles,
   Trash2,
   Undo2,
   UserPlus,
@@ -33,29 +34,32 @@ import {
 } from "lucide-react";
 import {
   AppUserSummary,
+  ClassSchedule,
+  DayOfWeek,
   HubDataset,
   PointCategory,
   PointLog,
+  ScheduleLesson,
   SessionUser,
   Student,
   Subject,
-  TeamBonus,
   Week,
 } from "@/types";
-import { formatShortDate, getTodayDateISO } from "@/lib/calculations";
+import { DAYS_OF_WEEK, formatShortDate, getTodayDateISO } from "@/lib/calculations";
 import { ThemeToggle } from "@/components/ThemeToggle";
 
 interface AdminPanelClientProps {
   initialDataset: HubDataset;
   currentUser: SessionUser;
   initialAppUsers?: AppUserSummary[];
+  initialTab?: "daily" | "schedules" | "manage";
 }
 
 interface ToastMessage {
   id: string;
   title: string;
   subtitle?: string;
-  variant: "success" | "combo" | "warning" | "error";
+  variant: "success" | "warning" | "error";
   undoLogId?: string;
 }
 
@@ -67,24 +71,75 @@ const FAIR_PLAY_PRESETS = [
   "Unsportsmanlike comment",
 ];
 
+/**
+ * Compresses any uploaded camera/screenshot photo in the browser to <= 1600px JPEG
+ * so even 10MB phone photos upload instantly and reliably to Supabase & Render.
+ */
+function compressScheduleImage(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onerror = () => reject(new Error("Could not read image file."));
+    reader.onload = () => {
+      const img = new window.Image();
+      img.onerror = () => reject(new Error("Invalid image format."));
+      img.onload = () => {
+        const maxDim = 1600;
+        let { width, height } = img;
+        if (width > maxDim || height > maxDim) {
+          if (width >= height) {
+            height = Math.round((height * maxDim) / width);
+            width = maxDim;
+          } else {
+            width = Math.round((width * maxDim) / height);
+            height = maxDim;
+          }
+        }
+        const canvas = document.createElement("canvas");
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext("2d");
+        if (!ctx) {
+          resolve(String(reader.result));
+          return;
+        }
+        ctx.fillStyle = "#ffffff";
+        ctx.fillRect(0, 0, width, height);
+        ctx.drawImage(img, 0, 0, width, height);
+        resolve(canvas.toDataURL("image/jpeg", 0.84));
+      };
+      img.src = String(reader.result);
+    };
+    reader.readAsDataURL(file);
+  });
+}
+
 export function AdminPanelClient({
   initialDataset,
   currentUser,
   initialAppUsers = [],
+  initialTab = "daily",
 }: AdminPanelClientProps) {
   const router = useRouter();
 
-  // Live reactive local state synced with server mutations
   const [appUsers, setAppUsers] = useState<AppUserSummary[]>(initialAppUsers);
-  const [myPhoneInput, setMyPhoneInput] = useState<string>(currentUser.phone ?? "");
+  const [myPhoneInput, setMyPhoneInput] = useState<string>(
+    currentUser.phone ?? ""
+  );
   const [savingPhone, setSavingPhone] = useState(false);
+
   const [students, setStudents] = useState<Student[]>(initialDataset.students);
   const [subjects, setSubjects] = useState<Subject[]>(initialDataset.subjects);
   const [weeks, setWeeks] = useState<Week[]>(initialDataset.weeks);
-  const [pointLogs, setPointLogs] = useState<PointLog[]>(initialDataset.pointLogs);
-  const [teamBonuses, setTeamBonuses] = useState<TeamBonus[]>(initialDataset.teamBonuses);
+  const [pointLogs, setPointLogs] = useState<PointLog[]>(
+    initialDataset.pointLogs
+  );
+  const [schedules, setSchedules] = useState<ClassSchedule[]>(
+    initialDataset.schedules
+  );
 
-  const [activeTab, setActiveTab] = useState<"daily" | "manage">("daily");
+  const [activeTab, setActiveTab] = useState<"daily" | "schedules" | "manage">(
+    initialTab
+  );
 
   const activeWeek = useMemo(
     () => weeks.find((w) => w.is_active) ?? weeks[weeks.length - 1],
@@ -96,26 +151,46 @@ export function AdminPanelClient({
     [subjects]
   );
 
-  const [selectedDate, setSelectedDate] = useState<string>(() => getTodayDateISO());
+  const [selectedDate, setSelectedDate] = useState<string>(() =>
+    getTodayDateISO()
+  );
   const [selectedSubjectId, setSelectedSubjectId] = useState<string>(
     () => visibleSubjects[0]?.id ?? subjects[0]?.id ?? ""
   );
+  const [studentSearch, setStudentSearch] = useState<string>("");
 
   const [busyStudentKey, setBusyStudentKey] = useState<string | null>(null);
   const [toasts, setToasts] = useState<ToastMessage[]>([]);
 
-  // Fair-Play (-1) Modal State
+  // Fair-Play Modal State
   const [fairPlayTarget, setFairPlayTarget] = useState<Student | null>(null);
   const [fairPlayReason, setFairPlayReason] = useState<string>("");
   const [submittingFairPlay, setSubmittingFairPlay] = useState<boolean>(false);
 
-  // Management Tab State — Weeks
+  // Schedule Builder State
+  const [scheduleTitle, setScheduleTitle] = useState<string>(
+    "MYP 3 Class Schedule"
+  );
+  const [scheduleImagePreview, setScheduleImagePreview] = useState<
+    string | null
+  >(null);
+  const [draftLessons, setDraftLessons] = useState<ScheduleLesson[]>([]);
+  const [lessonDay, setLessonDay] = useState<DayOfWeek>("Monday");
+  const [lessonPeriod, setLessonPeriod] = useState<number>(1);
+  const [lessonTime, setLessonTime] = useState<string>("08:30 - 09:15");
+  const [lessonSubject, setLessonSubject] = useState<string>("");
+  const [lessonRoom, setLessonRoom] = useState<string>("");
+  const [savingSchedule, setSavingSchedule] = useState<boolean>(false);
+
+  // Management — Weeks
   const nextWeekNum = useMemo(
     () => Math.max(0, ...weeks.map((w) => w.week_number)) + 1,
     [weeks]
   );
   const [newWeekName, setNewWeekName] = useState<string>("");
-  const [newWeekStart, setNewWeekStart] = useState<string>(() => getTodayDateISO());
+  const [newWeekStart, setNewWeekStart] = useState<string>(() =>
+    getTodayDateISO()
+  );
   const [newWeekEnd, setNewWeekEnd] = useState<string>(() => {
     const dt = new Date();
     dt.setDate(dt.getDate() + 6);
@@ -123,21 +198,18 @@ export function AdminPanelClient({
   });
   const [creatingWeek, setCreatingWeek] = useState(false);
 
-  // Management Tab State — Students
+  // Management — Solo Students
   const [newStudentName, setNewStudentName] = useState("");
-  const [newStudentTeamId, setNewStudentTeamId] = useState(
-    initialDataset.teams[0]?.id ?? ""
-  );
   const [addingStudent, setAddingStudent] = useState(false);
   const [editingStudentId, setEditingStudentId] = useState<string | null>(null);
   const [editingStudentName, setEditingStudentName] = useState("");
 
-  // Management Tab State — Subjects
+  // Management — Subjects
   const [newSubjectName, setNewSubjectName] = useState("");
   const [newSubjectAward, setNewSubjectAward] = useState("");
   const [addingSubject, setAddingSubject] = useState(false);
 
-  // Management Tab State — Clear All Data Modal
+  // Management — Clear Data Modal
   const [showResetModal, setShowResetModal] = useState(false);
   const [resetConfirmText, setResetConfirmText] = useState("");
   const [clearingData, setClearingData] = useState(false);
@@ -154,14 +226,17 @@ export function AdminPanelClient({
     setToasts((prev) => prev.filter((t) => t.id !== id));
   };
 
-  // Calculate per-student points for today & active week
   const studentStatsMap = useMemo(() => {
     const map = new Map<
       string,
       { todayPoints: number; scoredPositiveToday: boolean; weekPoints: number }
     >();
     for (const s of students) {
-      map.set(s.id, { todayPoints: 0, scoredPositiveToday: false, weekPoints: 0 });
+      map.set(s.id, {
+        todayPoints: 0,
+        scoredPositiveToday: false,
+        weekPoints: 0,
+      });
     }
     for (const log of pointLogs) {
       const entry = map.get(log.student_id);
@@ -177,28 +252,15 @@ export function AdminPanelClient({
     return map;
   }, [students, pointLogs, selectedDate, activeWeek]);
 
-  // Calculate dynamic Team Combo Streak status for selectedDate
-  const dateComboStatus = useMemo(() => {
-    return initialDataset.teams.map((team) => {
-      const activeMembers = students.filter(
-        (s) => s.is_active && s.team_id === team.id
-      );
-      const scoredCount = activeMembers.filter(
-        (m) => studentStatsMap.get(m.id)?.scoredPositiveToday
-      ).length;
-      const hasBonus = teamBonuses.some(
-        (b) => b.team_id === team.id && b.date === selectedDate
-      );
-      return {
-        team,
-        totalActive: activeMembers.length,
-        scoredCount,
-        hasBonus,
-      };
-    });
-  }, [initialDataset.teams, students, studentStatsMap, teamBonuses, selectedDate]);
+  const filteredActiveStudents = useMemo(() => {
+    const q = studentSearch.trim().toLowerCase();
+    return students
+      .filter(
+        (s) => s.is_active && (q.length === 0 || s.name.toLowerCase().includes(q))
+      )
+      .sort((a, b) => a.name.localeCompare(b.name));
+  }, [students, studentSearch]);
 
-  // Submit Quick Point Action
   const handleAwardPoint = async (
     student: Student,
     category: PointCategory,
@@ -207,7 +269,7 @@ export function AdminPanelClient({
     if (!activeWeek) {
       pushToast({
         title: "No Active Week",
-        subtitle: "Please create or activate a week in the Management tab first.",
+        subtitle: "Please create or activate a week in Management first.",
         variant: "error",
       });
       return;
@@ -216,7 +278,7 @@ export function AdminPanelClient({
     if (!selectedSubjectId) {
       pushToast({
         title: "Select a Subject",
-        subtitle: "Choose a lesson/subject at the top before awarding points.",
+        subtitle: "Choose a lesson/subject at the top first.",
         variant: "error",
       });
       return;
@@ -241,9 +303,6 @@ export function AdminPanelClient({
 
       const data = (await res.json()) as {
         pointLog?: PointLog;
-        comboAwarded?: boolean;
-        teamBonus?: TeamBonus | null;
-        teamName?: string;
         error?: string;
       };
 
@@ -265,28 +324,18 @@ export function AdminPanelClient({
 
       pushToast({
         title: `${ptsLabel} ${category} → ${student.name}`,
-        subtitle: `${subjectObj?.name ?? "Subject"} • ${formatShortDate(selectedDate)}`,
+        subtitle: `${subjectObj?.name ?? "Subject"} • ${formatShortDate(
+          selectedDate
+        )}`,
         variant: createdLog.points < 0 ? "warning" : "success",
         undoLogId: createdLog.id,
       });
-
-      if (data.comboAwarded && data.teamBonus) {
-        const bonus = data.teamBonus;
-        setTeamBonuses((prev) => [bonus, ...prev]);
-        pushToast({
-          title: `🔥 +5 TEAM COMBO STREAK!`,
-          subtitle: `Every member of ${data.teamName ?? "the team"} scored on ${formatShortDate(
-            selectedDate
-          )}!`,
-          variant: "combo",
-        });
-      }
 
       router.refresh();
     } catch {
       pushToast({
         title: "Network Error",
-        subtitle: "Failed to reach server. Please check your connection.",
+        subtitle: "Failed to reach server.",
         variant: "error",
       });
     } finally {
@@ -294,19 +343,16 @@ export function AdminPanelClient({
     }
   };
 
-  // Undo Point Action
   const handleUndo = async (logId: string, toastId: string) => {
     dismissToast(toastId);
     try {
-      const targetLog = pointLogs.find((l) => l.id === logId);
-      const res = await fetch(`/api/admin/points?id=${encodeURIComponent(logId)}`, {
-        method: "DELETE",
-      });
-      const data = (await res.json()) as {
-        undone?: boolean;
-        comboRevoked?: boolean;
-        error?: string;
-      };
+      const res = await fetch(
+        `/api/admin/points?id=${encodeURIComponent(logId)}`,
+        {
+          method: "DELETE",
+        }
+      );
+      const data = (await res.json()) as { undone?: boolean; error?: string };
 
       if (!res.ok || !data.undone) {
         pushToast({
@@ -318,31 +364,17 @@ export function AdminPanelClient({
       }
 
       setPointLogs((prev) => prev.filter((l) => l.id !== logId));
-      if (data.comboRevoked && targetLog) {
-        setTeamBonuses((prev) =>
-          prev.filter(
-            (b) => !(b.team_id === targetLog.team_id && b.date === targetLog.date)
-          )
-        );
-      }
-
       pushToast({
         title: "Action Undone",
-        subtitle: data.comboRevoked
-          ? "Point log and daily Team Combo bonus were cleanly reverted."
-          : "Point log removed.",
+        subtitle: "Point log removed.",
         variant: "warning",
       });
       router.refresh();
     } catch {
-      pushToast({
-        title: "Network error during Undo",
-        variant: "error",
-      });
+      pushToast({ title: "Network error during Undo", variant: "error" });
     }
   };
 
-  // Submit Fair-Play Modal
   const submitFairPlayModal = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!fairPlayTarget || fairPlayReason.trim().length < 3) return;
@@ -353,27 +385,149 @@ export function AdminPanelClient({
     setFairPlayReason("");
   };
 
-  // Logout
   const handleLogout = async () => {
     await fetch("/api/auth/logout", { method: "POST" });
     router.push("/");
     router.refresh();
   };
 
-  // Update Admin Phone Number
+  // Schedule Handlers
+  const handleSchedulePhotoSelect = async (
+    e: React.ChangeEvent<HTMLInputElement>
+  ) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    try {
+      const compressed = await compressScheduleImage(file);
+      setScheduleImagePreview(compressed);
+    } catch {
+      pushToast({
+        title: "Could not read image",
+        subtitle: "Please choose a valid PNG, JPG, or WebP photo.",
+        variant: "error",
+      });
+    }
+  };
+
+  const handleAddDraftLesson = () => {
+    if (!lessonSubject.trim()) return;
+    const item: ScheduleLesson = {
+      id: `${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+      day: lessonDay,
+      period: lessonPeriod,
+      time: lessonTime.trim(),
+      subject: lessonSubject.trim(),
+      roomOrTeacher: lessonRoom.trim() || undefined,
+    };
+    setDraftLessons((prev) => [...prev, item]);
+    setLessonPeriod((p) => p + 1);
+    setLessonSubject("");
+    setLessonRoom("");
+  };
+
+  const handleCreateSchedule = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!scheduleImagePreview && draftLessons.length === 0) {
+      pushToast({
+        title: "Upload a Photo or Add Lessons",
+        subtitle:
+          "Select a schedule photo or add at least one lesson row before saving.",
+        variant: "error",
+      });
+      return;
+    }
+
+    setSavingSchedule(true);
+    try {
+      const res = await fetch("/api/admin/schedules", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          title: scheduleTitle.trim() || "MYP 3 Class Schedule",
+          imageUrl: scheduleImagePreview,
+          entries: draftLessons,
+          makeActive: true,
+        }),
+      });
+      const data = (await res.json()) as {
+        schedule?: ClassSchedule;
+        error?: string;
+      };
+      if (!res.ok || !data.schedule) {
+        pushToast({
+          title: "Failed to save schedule",
+          subtitle: data.error,
+          variant: "error",
+        });
+        return;
+      }
+
+      setSchedules((prev) => [
+        data.schedule!,
+        ...prev.map((s) => ({ ...s, is_active: false })),
+      ]);
+      setScheduleImagePreview(null);
+      setDraftLessons([]);
+      pushToast({
+        title: "New Schedule Published!",
+        subtitle: "Live now on Public Dashboard, /schedule, and TV Mode.",
+        variant: "success",
+      });
+      router.refresh();
+    } finally {
+      setSavingSchedule(false);
+    }
+  };
+
+  const handleActivateSchedule = async (scheduleId: string) => {
+    const res = await fetch("/api/admin/schedules", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ scheduleId, makeActive: true }),
+    });
+    const data = (await res.json()) as {
+      schedule?: ClassSchedule;
+      error?: string;
+    };
+    if (!res.ok || !data.schedule) {
+      pushToast({
+        title: "Could not activate schedule",
+        subtitle: data.error,
+        variant: "error",
+      });
+      return;
+    }
+    setSchedules((prev) =>
+      prev.map((s) => ({ ...s, is_active: s.id === scheduleId }))
+    );
+    pushToast({
+      title: `Active Schedule: ${data.schedule.title}`,
+      variant: "success",
+    });
+    router.refresh();
+  };
+
+  const handleDeleteSchedule = async (scheduleId: string) => {
+    const res = await fetch(
+      `/api/admin/schedules?id=${encodeURIComponent(scheduleId)}`,
+      { method: "DELETE" }
+    );
+    if (!res.ok) {
+      pushToast({ title: "Could not delete schedule", variant: "error" });
+      return;
+    }
+    setSchedules((prev) => prev.filter((s) => s.id !== scheduleId));
+    pushToast({ title: "Schedule deleted", variant: "warning" });
+    router.refresh();
+  };
+
+  // Management Handlers
   const handleSaveMyPhone = async (e: React.FormEvent) => {
     e.preventDefault();
     const myRow = appUsers.find(
       (u) => u.username.toLowerCase() === currentUser.username.toLowerCase()
     );
-    if (!myRow) {
-      pushToast({
-        title: "Connect Supabase first",
-        subtitle: "Run schema.sql so account profile changes can be stored.",
-        variant: "error",
-      });
-      return;
-    }
+    if (!myRow) return;
     setSavingPhone(true);
     try {
       const res = await fetch("/api/admin/users", {
@@ -381,7 +535,10 @@ export function AdminPanelClient({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ userId: myRow.id, phone: myPhoneInput.trim() }),
       });
-      const data = (await res.json()) as { user?: AppUserSummary; error?: string };
+      const data = (await res.json()) as {
+        user?: AppUserSummary;
+        error?: string;
+      };
       if (!res.ok || !data.user) {
         pushToast({
           title: "Could not update phone",
@@ -395,7 +552,7 @@ export function AdminPanelClient({
       );
       pushToast({
         title: "Phone Number Saved",
-        subtitle: "You can now log in using either your phone number or username!",
+        subtitle: "You can now log in with your phone number or username!",
         variant: "success",
       });
     } finally {
@@ -403,7 +560,6 @@ export function AdminPanelClient({
     }
   };
 
-  // Toggle Registered User Role (Admin / Student)
   const handleToggleUserRole = async (target: AppUserSummary) => {
     const nextRole = target.role === "admin" ? "student" : "admin";
     const res = await fetch("/api/admin/users", {
@@ -411,7 +567,10 @@ export function AdminPanelClient({
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ userId: target.id, role: nextRole }),
     });
-    const data = (await res.json()) as { user?: AppUserSummary; error?: string };
+    const data = (await res.json()) as {
+      user?: AppUserSummary;
+      error?: string;
+    };
     if (!res.ok || !data.user) {
       pushToast({
         title: "Could not change role",
@@ -429,14 +588,16 @@ export function AdminPanelClient({
     });
   };
 
-  // Reset Student Password back to 12345678
   const handleResetStudentPassword = async (target: AppUserSummary) => {
     const res = await fetch("/api/admin/users", {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ userId: target.id, resetPassword: true }),
     });
-    const data = (await res.json()) as { user?: AppUserSummary; error?: string };
+    const data = (await res.json()) as {
+      user?: AppUserSummary;
+      error?: string;
+    };
     if (!res.ok || !data.user) {
       pushToast({
         title: "Could not reset password",
@@ -452,7 +613,6 @@ export function AdminPanelClient({
     });
   };
 
-  // Clear All Data Handler
   const handleClearAllData = async (e: React.FormEvent) => {
     e.preventDefault();
     if (resetConfirmText.trim().toUpperCase() !== "RESET") return;
@@ -461,9 +621,7 @@ export function AdminPanelClient({
       const res = await fetch("/api/admin/reset", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          confirmText: resetConfirmText.trim(),
-        }),
+        body: JSON.stringify({ confirmText: resetConfirmText.trim() }),
       });
       const data = (await res.json()) as {
         cleared?: boolean;
@@ -481,7 +639,6 @@ export function AdminPanelClient({
       }
 
       setPointLogs([]);
-      setTeamBonuses([]);
       setStudents((prev) => prev.map((s) => ({ ...s, is_active: true })));
       setSubjects((prev) => prev.map((sub) => ({ ...sub, is_hidden: false })));
       if (data.activeWeek) {
@@ -491,7 +648,8 @@ export function AdminPanelClient({
       setResetConfirmText("");
       pushToast({
         title: "Returned to Clean Start!",
-        subtitle: "All points reset to 0 (Week 1). All students, teams & accounts kept safe.",
+        subtitle:
+          "All solo points reset to 0 (Week 1). All students, schedules & accounts kept safe.",
         variant: "warning",
       });
       router.refresh();
@@ -500,7 +658,6 @@ export function AdminPanelClient({
     }
   };
 
-  // Management: Start New Week
   const handleCreateWeek = async (e: React.FormEvent) => {
     e.preventDefault();
     setCreatingWeek(true);
@@ -524,15 +681,14 @@ export function AdminPanelClient({
         });
         return;
       }
-      const created = data.week;
       setWeeks((prev) => [
         ...prev.map((w) => ({ ...w, is_active: false })),
-        created,
+        data.week!,
       ]);
       setNewWeekName("");
       pushToast({
-        title: `${created.name} Started!`,
-        subtitle: "Set as active week. All previous weeks remain safely stored.",
+        title: `${data.week.name} Started!`,
+        subtitle: "Set as active week. Previous weeks remain safely stored.",
         variant: "success",
       });
       router.refresh();
@@ -541,7 +697,6 @@ export function AdminPanelClient({
     }
   };
 
-  // Management: Switch Active Week
   const handleSwitchActiveWeek = async (weekId: string) => {
     const res = await fetch("/api/admin/weeks", {
       method: "PATCH",
@@ -549,14 +704,7 @@ export function AdminPanelClient({
       body: JSON.stringify({ weekId }),
     });
     const data = (await res.json()) as { week?: Week; error?: string };
-    if (!res.ok || !data.week) {
-      pushToast({
-        title: "Could not switch week",
-        subtitle: data.error,
-        variant: "error",
-      });
-      return;
-    }
+    if (!res.ok || !data.week) return;
     setWeeks((prev) => prev.map((w) => ({ ...w, is_active: w.id === weekId })));
     pushToast({
       title: `Switched Active Week to ${data.week.name}`,
@@ -565,7 +713,6 @@ export function AdminPanelClient({
     router.refresh();
   };
 
-  // Management: Add Student
   const handleAddStudent = async (e: React.FormEvent) => {
     e.preventDefault();
     if (newStudentName.trim().length < 2) return;
@@ -574,10 +721,7 @@ export function AdminPanelClient({
       const res = await fetch("/api/admin/students", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          name: newStudentName.trim(),
-          teamId: newStudentTeamId,
-        }),
+        body: JSON.stringify({ name: newStudentName.trim() }),
       });
       const data = (await res.json()) as { student?: Student; error?: string };
       if (!res.ok || !data.student) {
@@ -594,7 +738,7 @@ export function AdminPanelClient({
       setNewStudentName("");
       pushToast({
         title: `Added ${data.student.name}`,
-        subtitle: "Team size & fair averages updated dynamically.",
+        subtitle: "Account created with default password 12345678.",
         variant: "success",
       });
       router.refresh();
@@ -603,10 +747,9 @@ export function AdminPanelClient({
     }
   };
 
-  // Management: Update Student (rename, move team, or archive/restore)
   const handleUpdateStudent = async (
     studentId: string,
-    payload: { name?: string; teamId?: string; isActive?: boolean }
+    payload: { name?: string; isActive?: boolean }
   ) => {
     const res = await fetch("/api/admin/students", {
       method: "PATCH",
@@ -628,13 +771,11 @@ export function AdminPanelClient({
     setEditingStudentId(null);
     pushToast({
       title: `Updated ${data.student.name}`,
-      subtitle: "Score history preserved.",
       variant: "success",
     });
     router.refresh();
   };
 
-  // Management: Add Subject
   const handleAddSubject = async (e: React.FormEvent) => {
     e.preventDefault();
     if (newSubjectName.trim().length < 2) return;
@@ -672,7 +813,6 @@ export function AdminPanelClient({
     }
   };
 
-  // Management: Toggle Hide/Show Subject
   const handleToggleSubjectHidden = async (subject: Subject) => {
     const res = await fetch("/api/admin/subjects", {
       method: "PATCH",
@@ -683,19 +823,14 @@ export function AdminPanelClient({
       }),
     });
     const data = (await res.json()) as { subject?: Subject; error?: string };
-    if (!res.ok || !data.subject) {
-      pushToast({
-        title: "Failed to update subject",
-        subtitle: data.error,
-        variant: "error",
-      });
-      return;
-    }
+    if (!res.ok || !data.subject) return;
     setSubjects((prev) =>
       prev.map((s) => (s.id === subject.id ? data.subject! : s))
     );
     pushToast({
-      title: `${data.subject.name} ${data.subject.is_hidden ? "hidden" : "visible"}`,
+      title: `${data.subject.name} ${
+        data.subject.is_hidden ? "hidden" : "visible"
+      }`,
       variant: "success",
     });
     router.refresh();
@@ -703,7 +838,6 @@ export function AdminPanelClient({
 
   return (
     <div className="min-h-screen bg-slate-50 pb-20 dark:bg-navy-950">
-      {/* Admin Top Header */}
       <header className="sticky top-0 z-30 border-b border-slate-200 bg-white/95 backdrop-blur-md dark:border-slate-800 dark:bg-navy-900/95">
         <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-3 px-4 py-3.5 sm:px-6 lg:px-8">
           <div className="flex items-center gap-3">
@@ -716,7 +850,7 @@ export function AdminPanelClient({
             </Link>
             <div>
               <h1 className="text-base font-extrabold text-slate-900 sm:text-lg dark:text-white">
-                MYP 3 Leader Console
+                MYP 3 Solo Leader Console
               </h1>
               <p className="text-xs text-slate-500 dark:text-slate-400">
                 Signed in as <strong>@{currentUser.username}</strong> •{" "}
@@ -725,8 +859,8 @@ export function AdminPanelClient({
             </div>
           </div>
 
-          <div className="flex items-center gap-2">
-            {/* Tab Switcher */}
+          <div className="flex flex-wrap items-center gap-2">
+            {/* 3 Admin Tabs: Daily Input | Schedules | Management */}
             <div className="inline-flex rounded-xl border border-slate-200 bg-slate-100 p-1 dark:border-slate-700 dark:bg-navy-950">
               <button
                 type="button"
@@ -738,7 +872,19 @@ export function AdminPanelClient({
                 }`}
               >
                 <Zap className="h-3.5 w-3.5" />
-                One-Click Input
+                Daily Input
+              </button>
+              <button
+                type="button"
+                onClick={() => setActiveTab("schedules")}
+                className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-bold transition sm:text-sm ${
+                  activeTab === "schedules"
+                    ? "bg-white text-navy-900 shadow-sm dark:bg-blue-600 dark:text-white"
+                    : "text-slate-600 hover:text-slate-900 dark:text-slate-400"
+                }`}
+              >
+                <CalendarDays className="h-3.5 w-3.5" />
+                Schedules
               </button>
               <button
                 type="button"
@@ -779,20 +925,9 @@ export function AdminPanelClient({
       </header>
 
       <main className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
-        {!initialDataset.isConfigured && (
-          <div className="mb-6 rounded-2xl border border-amber-300 bg-amber-50 p-4 text-xs text-amber-950 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-200">
-            <strong>Database Not Connected Yet:</strong> Connect{" "}
-            <code className="font-mono">NEXT_PUBLIC_SUPABASE_URL</code>,{" "}
-            <code className="font-mono">NEXT_PUBLIC_SUPABASE_ANON_KEY</code>, and{" "}
-            <code className="font-mono">SUPABASE_SERVICE_ROLE_KEY</code> in{" "}
-            <code className="font-mono">.env.local</code> and run{" "}
-            <code className="font-mono">schema.sql</code> to save points to Supabase.
-          </div>
-        )}
-
-        {activeTab === "daily" ? (
+        {/* TAB 1: ONE-CLICK SOLO DAILY INPUT */}
+        {activeTab === "daily" && (
           <div className="space-y-6">
-            {/* Top Lesson & Date Bar */}
             <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5 dark:border-slate-800 dark:bg-navy-900">
               <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
                 <div>
@@ -812,13 +947,13 @@ export function AdminPanelClient({
                   />
                 </div>
 
-                <div className="md:col-span-2">
+                <div>
                   <label
                     htmlFor="daily-subject"
                     className="mb-1.5 flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400"
                   >
                     <BookOpen className="h-3.5 w-3.5" />
-                    Current Lesson / IB MYP 3 Subject
+                    Current Lesson / Subject
                   </label>
                   <select
                     id="daily-subject"
@@ -833,204 +968,417 @@ export function AdminPanelClient({
                     ))}
                   </select>
                 </div>
-              </div>
 
-              {/* Daily Team Combo Streak Progress Pills */}
-              <div className="mt-4 grid grid-cols-1 gap-3 border-t border-slate-100 pt-4 sm:grid-cols-3 dark:border-slate-800">
-                {dateComboStatus.map((st) => (
-                  <div
-                    key={st.team.id}
-                    className={`flex items-center justify-between rounded-xl border px-3.5 py-2.5 text-xs ${
-                      st.hasBonus
-                        ? "border-amber-300 bg-amber-50 text-amber-900 dark:border-amber-700 dark:bg-amber-950/40 dark:text-amber-200"
-                        : "border-slate-200 bg-slate-50/70 text-slate-700 dark:border-slate-800 dark:bg-navy-950/60 dark:text-slate-300"
-                    }`}
+                <div>
+                  <label
+                    htmlFor="student-quick-search"
+                    className="mb-1.5 flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400"
                   >
-                    <div className="flex items-center gap-2 font-bold">
-                      <span
-                        className="h-2.5 w-2.5 rounded-full"
-                        style={{ backgroundColor: st.team.color }}
-                      />
-                      <span>{st.team.name}</span>
-                    </div>
-                    {st.hasBonus ? (
-                      <span className="inline-flex items-center gap-1 font-extrabold text-amber-600 dark:text-amber-400">
-                        <Flame className="h-3.5 w-3.5 fill-amber-500" />
-                        +5 Combo Unlocked!
-                      </span>
-                    ) : (
-                      <span className="font-semibold text-slate-500 dark:text-slate-400">
-                        Combo: {st.scoredCount}/{st.totalActive} today
-                      </span>
-                    )}
-                  </div>
-                ))}
+                    <Search className="h-3.5 w-3.5" />
+                    Quick Find Student
+                  </label>
+                  <input
+                    id="student-quick-search"
+                    type="text"
+                    value={studentSearch}
+                    onChange={(e) => setStudentSearch(e.target.value)}
+                    placeholder="Type student name..."
+                    className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-2.5 text-sm font-medium text-slate-900 placeholder:text-slate-400 focus:border-blue-500 focus:outline-none dark:border-slate-700 dark:bg-navy-950 dark:text-white"
+                  />
+                </div>
               </div>
             </section>
 
-            {/* 3 Clean Team Columns for Fast One-Click Daily Input */}
-            <section className="grid grid-cols-1 gap-5 lg:grid-cols-3">
-              {initialDataset.teams.map((team) => {
-                const teamStudents = students.filter(
-                  (s) => s.is_active && s.team_id === team.id
-                );
+            {/* Solo Student Cards Grid */}
+            <section className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+              {filteredActiveStudents.map((student) => {
+                const stats = studentStatsMap.get(student.id) ?? {
+                  todayPoints: 0,
+                  scoredPositiveToday: false,
+                  weekPoints: 0,
+                };
 
                 return (
                   <div
-                    key={team.id}
-                    className="flex flex-col overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-navy-900"
+                    key={student.id}
+                    className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm transition hover:border-blue-300 dark:border-slate-800 dark:bg-navy-900 dark:hover:border-blue-700"
                   >
-                    {/* Team Column Header */}
-                    <div
-                      className="px-5 py-4 text-white"
-                      style={{ backgroundColor: team.color }}
-                    >
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <p className="text-[11px] font-bold uppercase tracking-wider opacity-85">
-                            {team.short_name}
-                          </p>
-                          <h2 className="text-lg font-black">{team.name}</h2>
-                        </div>
-                        <span className="inline-flex items-center gap-1 rounded-full bg-white/20 px-2.5 py-1 text-xs font-bold">
-                          <Users className="h-3.5 w-3.5" />
-                          {teamStudents.length} members
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-2">
+                        <span className="text-base font-extrabold text-slate-900 dark:text-white">
+                          {student.name}
+                        </span>
+                        {stats.scoredPositiveToday && (
+                          <span className="inline-flex items-center gap-0.5 rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-bold text-emerald-700 dark:bg-emerald-950/70 dark:text-emerald-300">
+                            <Check className="h-3 w-3" />
+                            Active Today
+                          </span>
+                        )}
+                      </div>
+
+                      <div className="flex items-center gap-2 text-xs">
+                        <span className="rounded-md bg-slate-100 px-2 py-0.5 font-bold text-slate-700 dark:bg-navy-800 dark:text-slate-300">
+                          Today:{" "}
+                          {stats.todayPoints > 0
+                            ? `+${stats.todayPoints}`
+                            : stats.todayPoints}
+                        </span>
+                        <span className="font-bold text-blue-600 dark:text-blue-400">
+                          Wk: {stats.weekPoints}
                         </span>
                       </div>
                     </div>
 
-                    {/* Student Cards */}
-                    <div className="divide-y divide-slate-100 p-3 dark:divide-slate-800">
-                      {teamStudents.map((student) => {
-                        const stats = studentStatsMap.get(student.id) ?? {
-                          todayPoints: 0,
-                          scoredPositiveToday: false,
-                          weekPoints: 0,
-                        };
+                    <div className="mt-3 grid grid-cols-5 gap-1.5">
+                      <button
+                        type="button"
+                        disabled={busyStudentKey !== null}
+                        onClick={() => handleAwardPoint(student, "Active")}
+                        title="Good answer / participation (+1)"
+                        className="flex flex-col items-center justify-center rounded-xl border border-blue-200 bg-blue-50/80 px-1.5 py-2 text-[11px] font-extrabold text-blue-700 transition hover:bg-blue-100 active:scale-95 disabled:opacity-50 dark:border-blue-900/60 dark:bg-blue-950/50 dark:text-blue-300"
+                      >
+                        {busyStudentKey === `${student.id}-Active` ? (
+                          <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                        ) : (
+                          <span>+1</span>
+                        )}
+                        <span className="text-[10px] font-semibold">Active</span>
+                      </button>
 
-                        return (
-                          <div
-                            key={student.id}
-                            className="py-3 first:pt-1 last:pb-1"
-                          >
-                            <div className="flex items-center justify-between gap-2">
-                              <div className="flex items-center gap-2">
-                                <span className="text-sm font-extrabold text-slate-900 dark:text-white">
-                                  {student.name}
-                                </span>
-                                {stats.scoredPositiveToday && (
-                                  <span
-                                    title="Participated today (counts toward Team Combo Streak)"
-                                    className="inline-flex items-center gap-0.5 rounded-full bg-emerald-100 px-1.5 py-0.5 text-[10px] font-bold text-emerald-700 dark:bg-emerald-950/70 dark:text-emerald-300"
-                                  >
-                                    <Check className="h-3 w-3" />
-                                    Today
-                                  </span>
-                                )}
-                              </div>
+                      <button
+                        type="button"
+                        disabled={busyStudentKey !== null}
+                        onClick={() => handleAwardPoint(student, "Star")}
+                        title="Great presentation / tough problem solved (+2)"
+                        className="flex flex-col items-center justify-center rounded-xl border border-violet-200 bg-violet-50/80 px-1.5 py-2 text-[11px] font-extrabold text-violet-700 transition hover:bg-violet-100 active:scale-95 disabled:opacity-50 dark:border-violet-900/60 dark:bg-violet-950/50 dark:text-violet-300"
+                      >
+                        {busyStudentKey === `${student.id}-Star` ? (
+                          <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                        ) : (
+                          <span>+2</span>
+                        )}
+                        <span className="text-[10px] font-semibold">Star</span>
+                      </button>
 
-                              <div className="flex items-center gap-2 text-xs">
-                                <span className="rounded-md bg-slate-100 px-2 py-0.5 font-bold text-slate-700 dark:bg-navy-800 dark:text-slate-300">
-                                  Today:{" "}
-                                  {stats.todayPoints > 0
-                                    ? `+${stats.todayPoints}`
-                                    : stats.todayPoints}
-                                </span>
-                                <span className="font-semibold text-slate-400">
-                                  Wk: {stats.weekPoints}
-                                </span>
-                              </div>
-                            </div>
+                      <button
+                        type="button"
+                        disabled={busyStudentKey !== null}
+                        onClick={() => handleAwardPoint(student, "Ace")}
+                        title="Outstanding achievement (+3)"
+                        className="flex flex-col items-center justify-center rounded-xl border border-amber-200 bg-amber-50/90 px-1.5 py-2 text-[11px] font-extrabold text-amber-800 transition hover:bg-amber-100 active:scale-95 disabled:opacity-50 dark:border-amber-900/60 dark:bg-amber-950/50 dark:text-amber-300"
+                      >
+                        {busyStudentKey === `${student.id}-Ace` ? (
+                          <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                        ) : (
+                          <span>+3</span>
+                        )}
+                        <span className="text-[10px] font-semibold">Ace</span>
+                      </button>
 
-                            {/* One-Click Scoring Buttons */}
-                            <div className="mt-2.5 grid grid-cols-5 gap-1.5">
-                              <button
-                                type="button"
-                                disabled={busyStudentKey !== null}
-                                onClick={() => handleAwardPoint(student, "Active")}
-                                title="Good answer / active participation (+1)"
-                                className="flex flex-col items-center justify-center rounded-xl border border-blue-200 bg-blue-50/80 px-1.5 py-2 text-[11px] font-extrabold text-blue-700 transition hover:bg-blue-100 active:scale-95 disabled:opacity-50 dark:border-blue-900/60 dark:bg-blue-950/50 dark:text-blue-300 dark:hover:bg-blue-900/50"
-                              >
-                                {busyStudentKey === `${student.id}-Active` ? (
-                                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                                ) : (
-                                  <span>+1</span>
-                                )}
-                                <span className="text-[10px] font-semibold">Active</span>
-                              </button>
+                      <button
+                        type="button"
+                        disabled={busyStudentKey !== null}
+                        onClick={() => handleAwardPoint(student, "Duty")}
+                        title="Class duty: clean board, markers, helped peers (+1)"
+                        className="flex flex-col items-center justify-center rounded-xl border border-emerald-200 bg-emerald-50/80 px-1.5 py-2 text-[11px] font-extrabold text-emerald-700 transition hover:bg-emerald-100 active:scale-95 disabled:opacity-50 dark:border-emerald-900/60 dark:bg-emerald-950/50 dark:text-emerald-300"
+                      >
+                        {busyStudentKey === `${student.id}-Duty` ? (
+                          <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                        ) : (
+                          <span>+1</span>
+                        )}
+                        <span className="text-[10px] font-semibold">Duty</span>
+                      </button>
 
-                              <button
-                                type="button"
-                                disabled={busyStudentKey !== null}
-                                onClick={() => handleAwardPoint(student, "Star")}
-                                title="Great presentation / tough problem solved / peer help (+2)"
-                                className="flex flex-col items-center justify-center rounded-xl border border-violet-200 bg-violet-50/80 px-1.5 py-2 text-[11px] font-extrabold text-violet-700 transition hover:bg-violet-100 active:scale-95 disabled:opacity-50 dark:border-violet-900/60 dark:bg-violet-950/50 dark:text-violet-300 dark:hover:bg-violet-900/50"
-                              >
-                                {busyStudentKey === `${student.id}-Star` ? (
-                                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                                ) : (
-                                  <span>+2</span>
-                                )}
-                                <span className="text-[10px] font-semibold">Star</span>
-                              </button>
-
-                              <button
-                                type="button"
-                                disabled={busyStudentKey !== null}
-                                onClick={() => handleAwardPoint(student, "Ace")}
-                                title="Outstanding achievement (+3)"
-                                className="flex flex-col items-center justify-center rounded-xl border border-amber-200 bg-amber-50/90 px-1.5 py-2 text-[11px] font-extrabold text-amber-800 transition hover:bg-amber-100 active:scale-95 disabled:opacity-50 dark:border-amber-900/60 dark:bg-amber-950/50 dark:text-amber-300 dark:hover:bg-amber-900/50"
-                              >
-                                {busyStudentKey === `${student.id}-Ace` ? (
-                                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                                ) : (
-                                  <span>+3</span>
-                                )}
-                                <span className="text-[10px] font-semibold">Ace</span>
-                              </button>
-
-                              <button
-                                type="button"
-                                disabled={busyStudentKey !== null}
-                                onClick={() => handleAwardPoint(student, "Duty")}
-                                title="Classroom duty: clean board, markers, helped class (+1)"
-                                className="flex flex-col items-center justify-center rounded-xl border border-emerald-200 bg-emerald-50/80 px-1.5 py-2 text-[11px] font-extrabold text-emerald-700 transition hover:bg-emerald-100 active:scale-95 disabled:opacity-50 dark:border-emerald-900/60 dark:bg-emerald-950/50 dark:text-emerald-300 dark:hover:bg-emerald-900/50"
-                              >
-                                {busyStudentKey === `${student.id}-Duty` ? (
-                                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                                ) : (
-                                  <span>+1</span>
-                                )}
-                                <span className="text-[10px] font-semibold">Duty</span>
-                              </button>
-
-                              <button
-                                type="button"
-                                disabled={busyStudentKey !== null}
-                                onClick={() => {
-                                  setFairPlayTarget(student);
-                                  setFairPlayReason("");
-                                }}
-                                title="Fair-Play deduction (-1, requires mandatory reason)"
-                                className="flex flex-col items-center justify-center rounded-xl border border-rose-200 bg-rose-50/70 px-1.5 py-2 text-[11px] font-extrabold text-rose-700 transition hover:bg-rose-100 active:scale-95 disabled:opacity-50 dark:border-rose-900/60 dark:bg-rose-950/40 dark:text-rose-300 dark:hover:bg-rose-900/50"
-                              >
-                                <span>-1</span>
-                                <span className="text-[10px] font-semibold">Fair</span>
-                              </button>
-                            </div>
-                          </div>
-                        );
-                      })}
+                      <button
+                        type="button"
+                        disabled={busyStudentKey !== null}
+                        onClick={() => {
+                          setFairPlayTarget(student);
+                          setFairPlayReason("");
+                        }}
+                        title="Fair-Play deduction (-1, mandatory reason)"
+                        className="flex flex-col items-center justify-center rounded-xl border border-rose-200 bg-rose-50/70 px-1.5 py-2 text-[11px] font-extrabold text-rose-700 transition hover:bg-rose-100 active:scale-95 disabled:opacity-50 dark:border-rose-900/60 dark:bg-rose-950/40 dark:text-rose-300"
+                      >
+                        <span>-1</span>
+                        <span className="text-[10px] font-semibold">Fair</span>
+                      </button>
                     </div>
                   </div>
                 );
               })}
             </section>
           </div>
-        ) : (
-          /* MANAGEMENT TAB */
+        )}
+
+        {/* TAB 2: CLASS SCHEDULES MANAGER (UPLOAD PHOTO OR ADD LESSONS) */}
+        {activeTab === "schedules" && (
           <div className="space-y-8">
-            {/* 1. Weeks Management */}
+            <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-navy-900">
+              <div className="flex items-center gap-2.5 border-b border-slate-100 pb-4 dark:border-slate-800">
+                <CalendarDays className="h-5 w-5 text-blue-600 dark:text-blue-400" />
+                <div>
+                  <h2 className="text-lg font-extrabold text-slate-900 dark:text-white">
+                    Add New Class Schedule
+                  </h2>
+                  <p className="text-xs text-slate-500 dark:text-slate-400">
+                    Upload a schedule photo from your phone/computer, add daily lesson rows, or both!
+                  </p>
+                </div>
+              </div>
+
+              <form onSubmit={handleCreateSchedule} className="mt-5 space-y-6">
+                <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
+                  {/* Left: Title + Photo Upload */}
+                  <div className="space-y-4">
+                    <div>
+                      <label className="block text-xs font-bold uppercase tracking-wider text-slate-600 dark:text-slate-300">
+                        Schedule Title
+                      </label>
+                      <input
+                        type="text"
+                        required
+                        value={scheduleTitle}
+                        onChange={(e) => setScheduleTitle(e.target.value)}
+                        placeholder="e.g. MYP 3 Term 2 Schedule"
+                        className="mt-1.5 w-full rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-2.5 text-sm font-bold text-slate-900 dark:border-slate-700 dark:bg-navy-950 dark:text-white"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-bold uppercase tracking-wider text-slate-600 dark:text-slate-300">
+                        Schedule Photo (Optional or Primary)
+                      </label>
+                      <label className="mt-1.5 flex cursor-pointer flex-col items-center justify-center rounded-2xl border-2 border-dashed border-slate-300 bg-slate-50/70 p-6 text-center transition hover:border-blue-500 dark:border-slate-700 dark:bg-navy-950/60">
+                        <ImagePlus className="h-8 w-8 text-blue-600 dark:text-blue-400" />
+                        <span className="mt-2 text-xs font-bold text-slate-700 dark:text-slate-200">
+                          Click to Upload Schedule Photo (PNG / JPG / WebP)
+                        </span>
+                        <span className="mt-0.5 text-[11px] text-slate-400">
+                          Automatically optimized for fast loading
+                        </span>
+                        <input
+                          type="file"
+                          accept="image/*"
+                          onChange={handleSchedulePhotoSelect}
+                          className="hidden"
+                        />
+                      </label>
+
+                      {scheduleImagePreview && (
+                        <div className="relative mt-3 overflow-hidden rounded-2xl border border-slate-200 bg-slate-100 p-2 dark:border-slate-800 dark:bg-navy-950">
+                          <button
+                            type="button"
+                            onClick={() => setScheduleImagePreview(null)}
+                            className="absolute right-3 top-3 rounded-full bg-rose-600 p-1.5 text-white shadow"
+                            title="Remove photo"
+                          >
+                            <X className="h-4 w-4" />
+                          </button>
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img
+                            src={scheduleImagePreview}
+                            alt="Schedule preview"
+                            className="mx-auto max-h-64 rounded-xl object-contain"
+                          />
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Right: Optional Interactive Timetable Builder */}
+                  <div className="space-y-4 rounded-2xl border border-slate-200 bg-slate-50/60 p-4 dark:border-slate-800 dark:bg-navy-950/60">
+                    <div>
+                      <h3 className="text-sm font-bold text-slate-900 dark:text-white">
+                        Optional: Add Daily Timetable Rows
+                      </h3>
+                      <p className="text-xs text-slate-500">
+                        Add individual lessons so Today&apos;s Schedule also shows up as cards on TV Mode!
+                      </p>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3">
+                      <select
+                        value={lessonDay}
+                        onChange={(e) => setLessonDay(e.target.value as DayOfWeek)}
+                        className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-bold dark:border-slate-700 dark:bg-navy-900 dark:text-white"
+                      >
+                        {DAYS_OF_WEEK.map((d) => (
+                          <option key={d} value={d}>
+                            {d}
+                          </option>
+                        ))}
+                      </select>
+
+                      <input
+                        type="number"
+                        min={1}
+                        max={12}
+                        value={lessonPeriod}
+                        onChange={(e) => setLessonPeriod(Number(e.target.value))}
+                        placeholder="Period #"
+                        className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-bold dark:border-slate-700 dark:bg-navy-900 dark:text-white"
+                      />
+
+                      <input
+                        type="text"
+                        value={lessonTime}
+                        onChange={(e) => setLessonTime(e.target.value)}
+                        placeholder="08:30 - 09:15"
+                        className="col-span-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-medium sm:col-span-1 dark:border-slate-700 dark:bg-navy-900 dark:text-white"
+                      />
+                    </div>
+
+                    <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
+                      <input
+                        type="text"
+                        value={lessonSubject}
+                        onChange={(e) => setLessonSubject(e.target.value)}
+                        placeholder="Subject (e.g. Mathematics)"
+                        className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-medium dark:border-slate-700 dark:bg-navy-900 dark:text-white"
+                      />
+                      <div className="flex gap-2">
+                        <input
+                          type="text"
+                          value={lessonRoom}
+                          onChange={(e) => setLessonRoom(e.target.value)}
+                          placeholder="Room / Teacher (optional)"
+                          className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-medium dark:border-slate-700 dark:bg-navy-900 dark:text-white"
+                        />
+                        <button
+                          type="button"
+                          onClick={handleAddDraftLesson}
+                          className="shrink-0 rounded-xl bg-blue-600 px-3 py-2 text-xs font-bold text-white hover:bg-blue-500"
+                        >
+                          + Row
+                        </button>
+                      </div>
+                    </div>
+
+                    {draftLessons.length > 0 && (
+                      <div className="max-h-48 space-y-1.5 overflow-y-auto pt-2">
+                        {draftLessons.map((item) => (
+                          <div
+                            key={item.id}
+                            className="flex items-center justify-between rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs dark:border-slate-700 dark:bg-navy-900"
+                          >
+                            <span>
+                              <strong>
+                                {item.day} #{item.period}
+                              </strong>{" "}
+                              • {item.subject}{" "}
+                              {item.time ? `(${item.time})` : ""}
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() =>
+                                setDraftLessons((prev) =>
+                                  prev.filter((x) => x.id !== item.id)
+                                )
+                              }
+                              className="text-rose-500 hover:text-rose-700"
+                            >
+                              <X className="h-3.5 w-3.5" />
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                <button
+                  type="submit"
+                  disabled={savingSchedule}
+                  className="inline-flex items-center gap-2 rounded-xl bg-navy-800 px-6 py-3 text-sm font-bold text-white shadow hover:bg-navy-700 disabled:opacity-50 dark:bg-blue-600 dark:hover:bg-blue-500"
+                >
+                  {savingSchedule ? (
+                    <>
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      Publishing Schedule...
+                    </>
+                  ) : (
+                    <>
+                      <Plus className="h-4 w-4" />
+                      Publish &amp; Set Active Schedule
+                    </>
+                  )}
+                </button>
+              </form>
+            </section>
+
+            {/* Saved Schedules History */}
+            <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-navy-900">
+              <h3 className="text-base font-extrabold text-slate-900 dark:text-white">
+                Saved Class Schedules ({schedules.length})
+              </h3>
+              <div className="mt-4 space-y-3">
+                {schedules.length === 0 ? (
+                  <p className="text-xs text-slate-400">
+                    No schedules uploaded yet. Upload your first schedule photo above!
+                  </p>
+                ) : (
+                  schedules.map((sch) => (
+                    <div
+                      key={sch.id}
+                      className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-200 p-4 dark:border-slate-800"
+                    >
+                      <div className="flex items-center gap-3">
+                        {sch.image_url && (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img
+                            src={sch.image_url}
+                            alt={sch.title}
+                            className="h-12 w-12 rounded-lg object-cover border border-slate-200 dark:border-slate-700"
+                          />
+                        )}
+                        <div>
+                          <p className="text-sm font-extrabold text-slate-900 dark:text-white">
+                            {sch.title}
+                          </p>
+                          <p className="text-xs text-slate-500">
+                            {sch.image_url ? "Photo attached" : "No photo"} •{" "}
+                            {sch.entries.length} lesson rows
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-2">
+                        {sch.is_active ? (
+                          <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-3 py-1 text-xs font-bold text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300">
+                            <CheckCircle2 className="h-3.5 w-3.5" />
+                            Active
+                          </span>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => handleActivateSchedule(sch.id)}
+                            className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-bold text-slate-700 hover:bg-slate-100 dark:border-slate-700 dark:text-slate-200"
+                          >
+                            Set Active
+                          </button>
+                        )}
+                        <button
+                          type="button"
+                          onClick={() => handleDeleteSchedule(sch.id)}
+                          className="rounded-lg border border-rose-200 bg-rose-50 p-1.5 text-rose-600 hover:bg-rose-100 dark:border-rose-900/60 dark:bg-rose-950/40 dark:text-rose-400"
+                          title="Delete schedule"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </button>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+            </section>
+          </div>
+        )}
+
+        {/* TAB 3: MANAGEMENT */}
+        {activeTab === "manage" && (
+          <div className="space-y-8">
+            {/* 1. Academic Weeks */}
             <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-navy-900">
               <div className="flex items-center gap-2 border-b border-slate-100 pb-4 dark:border-slate-800">
                 <Calendar className="h-5 w-5 text-blue-600 dark:text-blue-400" />
@@ -1039,13 +1387,12 @@ export function AdminPanelClient({
                     Academic Weeks Management
                   </h2>
                   <p className="text-xs text-slate-500 dark:text-slate-400">
-                    Start a new week or switch the active week. All historical logs stay permanently saved.
+                    Start a new week or switch the active week. All historical weeks remain saved.
                   </p>
                 </div>
               </div>
 
               <div className="mt-5 grid grid-cols-1 gap-6 lg:grid-cols-2">
-                {/* Create New Week Form */}
                 <form
                   onSubmit={handleCreateWeek}
                   className="space-y-3 rounded-2xl border border-slate-200 bg-slate-50/70 p-4 dark:border-slate-800 dark:bg-navy-950/60"
@@ -1097,11 +1444,12 @@ export function AdminPanelClient({
                     className="inline-flex items-center gap-1.5 rounded-xl bg-navy-800 px-4 py-2.5 text-xs font-bold text-white shadow hover:bg-navy-700 disabled:opacity-50 dark:bg-blue-600 dark:hover:bg-blue-500"
                   >
                     <Plus className="h-4 w-4" />
-                    {creatingWeek ? "Creating..." : `Create & Activate Week ${nextWeekNum}`}
+                    {creatingWeek
+                      ? "Creating..."
+                      : `Create & Activate Week ${nextWeekNum}`}
                   </button>
                 </form>
 
-                {/* Existing Weeks List */}
                 <div className="space-y-2.5">
                   <h3 className="text-sm font-bold text-slate-900 dark:text-white">
                     Saved Weeks History
@@ -1116,7 +1464,8 @@ export function AdminPanelClient({
                           {w.name}
                         </p>
                         <p className="text-xs text-slate-500">
-                          {formatShortDate(w.start_date)} – {formatShortDate(w.end_date)}
+                          {formatShortDate(w.start_date)} –{" "}
+                          {formatShortDate(w.end_date)}
                         </p>
                       </div>
                       {w.is_active ? (
@@ -1139,42 +1488,33 @@ export function AdminPanelClient({
               </div>
             </section>
 
-            {/* 2. Manage Students & Teams */}
+            {/* 2. Solo Students Roster */}
             <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-navy-900">
               <div className="flex flex-col gap-4 border-b border-slate-100 pb-4 sm:flex-row sm:items-center sm:justify-between dark:border-slate-800">
                 <div className="flex items-center gap-2">
                   <Users className="h-5 w-5 text-violet-600 dark:text-violet-400" />
                   <div>
                     <h2 className="text-lg font-extrabold text-slate-900 dark:text-white">
-                      Students &amp; Team Roster
+                      MYP 3 Solo Students Roster ({students.filter((s) => s.is_active).length} Active)
                     </h2>
                     <p className="text-xs text-slate-500 dark:text-slate-400">
-                      Add new classmates, edit names, or reassign teams without losing score history.
+                      Add new classmates or edit names without losing score history.
                     </p>
                   </div>
                 </div>
 
-                {/* Add Student Inline Form */}
-                <form onSubmit={handleAddStudent} className="flex flex-wrap items-center gap-2">
+                <form
+                  onSubmit={handleAddStudent}
+                  className="flex flex-wrap items-center gap-2"
+                >
                   <input
                     type="text"
                     required
                     value={newStudentName}
                     onChange={(e) => setNewStudentName(e.target.value)}
                     placeholder="New student name..."
-                    className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-medium dark:border-slate-700 dark:bg-navy-950 dark:text-white"
+                    className="rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-2 text-xs font-medium dark:border-slate-700 dark:bg-navy-950 dark:text-white"
                   />
-                  <select
-                    value={newStudentTeamId}
-                    onChange={(e) => setNewStudentTeamId(e.target.value)}
-                    className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-semibold dark:border-slate-700 dark:bg-navy-950 dark:text-white"
-                  >
-                    {initialDataset.teams.map((t) => (
-                      <option key={t.id} value={t.id}>
-                        {t.name}
-                      </option>
-                    ))}
-                  </select>
                   <button
                     type="submit"
                     disabled={addingStudent}
@@ -1186,135 +1526,85 @@ export function AdminPanelClient({
                 </form>
               </div>
 
-              <div className="mt-5 grid grid-cols-1 gap-4 lg:grid-cols-3">
-                {initialDataset.teams.map((team) => {
-                  const teamRoster = students.filter((s) => s.team_id === team.id);
+              <div className="mt-5 grid grid-cols-1 gap-2.5 sm:grid-cols-2 lg:grid-cols-3">
+                {students.map((student) => {
+                  const isEditing = editingStudentId === student.id;
                   return (
                     <div
-                      key={team.id}
-                      className="rounded-2xl border border-slate-200 p-4 dark:border-slate-800"
+                      key={student.id}
+                      className={`rounded-xl border p-3 text-xs ${
+                        student.is_active
+                          ? "border-slate-200 bg-slate-50/70 dark:border-slate-800 dark:bg-navy-950/60"
+                          : "border-dashed border-slate-200 opacity-60 dark:border-slate-800"
+                      }`}
                     >
-                      <div className="mb-3 flex items-center justify-between">
-                        <div className="flex items-center gap-2">
-                          <span
-                            className="h-3 w-3 rounded-full"
-                            style={{ backgroundColor: team.color }}
+                      {isEditing ? (
+                        <div className="flex items-center gap-1.5">
+                          <input
+                            type="text"
+                            value={editingStudentName}
+                            onChange={(e) =>
+                              setEditingStudentName(e.target.value)
+                            }
+                            className="w-full rounded-lg border border-blue-400 bg-white px-2 py-1 text-xs font-bold dark:bg-navy-900 dark:text-white"
                           />
-                          <h3 className="text-sm font-extrabold text-slate-900 dark:text-white">
-                            {team.name}
-                          </h3>
+                          <button
+                            type="button"
+                            onClick={() =>
+                              handleUpdateStudent(student.id, {
+                                name: editingStudentName,
+                              })
+                            }
+                            className="rounded-lg bg-emerald-600 p-1.5 text-white"
+                          >
+                            <Check className="h-3.5 w-3.5" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setEditingStudentId(null)}
+                            className="rounded-lg bg-slate-200 p-1.5 text-slate-700 dark:bg-navy-800 dark:text-slate-300"
+                          >
+                            <X className="h-3.5 w-3.5" />
+                          </button>
                         </div>
-                        <span className="text-xs font-semibold text-slate-500">
-                          {teamRoster.filter((s) => s.is_active).length} active
-                        </span>
-                      </div>
-
-                      <div className="space-y-2">
-                        {teamRoster.map((student) => {
-                          const isEditing = editingStudentId === student.id;
-                          return (
-                            <div
-                              key={student.id}
-                              className={`rounded-xl border p-2.5 text-xs ${
-                                student.is_active
-                                  ? "border-slate-100 bg-slate-50/70 dark:border-slate-800 dark:bg-navy-950/60"
-                                  : "border-dashed border-slate-200 opacity-60 dark:border-slate-800"
-                              }`}
+                      ) : (
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="font-bold text-slate-900 dark:text-white">
+                            {student.name}
+                          </span>
+                          <div className="flex items-center gap-1">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setEditingStudentId(student.id);
+                                setEditingStudentName(student.name);
+                              }}
+                              title="Rename student"
+                              className="rounded p-1 text-slate-400 hover:bg-slate-200/70 hover:text-slate-700 dark:hover:bg-navy-800"
                             >
-                              {isEditing ? (
-                                <div className="flex items-center gap-1.5">
-                                  <input
-                                    type="text"
-                                    value={editingStudentName}
-                                    onChange={(e) => setEditingStudentName(e.target.value)}
-                                    className="w-full rounded-lg border border-blue-400 bg-white px-2 py-1 text-xs font-bold dark:bg-navy-900 dark:text-white"
-                                  />
-                                  <button
-                                    type="button"
-                                    onClick={() =>
-                                      handleUpdateStudent(student.id, {
-                                        name: editingStudentName,
-                                      })
-                                    }
-                                    className="rounded-lg bg-emerald-600 p-1.5 text-white"
-                                    title="Save name"
-                                  >
-                                    <Check className="h-3.5 w-3.5" />
-                                  </button>
-                                  <button
-                                    type="button"
-                                    onClick={() => setEditingStudentId(null)}
-                                    className="rounded-lg bg-slate-200 p-1.5 text-slate-700 dark:bg-navy-800 dark:text-slate-300"
-                                  >
-                                    <X className="h-3.5 w-3.5" />
-                                  </button>
-                                </div>
-                              ) : (
-                                <div className="flex items-center justify-between gap-2">
-                                  <span className="font-bold text-slate-900 dark:text-white">
-                                    {student.name}
-                                  </span>
-
-                                  <div className="flex items-center gap-1">
-                                    <button
-                                      type="button"
-                                      onClick={() => {
-                                        setEditingStudentId(student.id);
-                                        setEditingStudentName(student.name);
-                                      }}
-                                      title="Edit student name"
-                                      className="rounded p-1 text-slate-400 hover:bg-slate-200/70 hover:text-slate-700 dark:hover:bg-navy-800"
-                                    >
-                                      <Edit3 className="h-3.5 w-3.5" />
-                                    </button>
-
-                                    <select
-                                      aria-label={`Move ${student.name} to team`}
-                                      value={student.team_id}
-                                      onChange={(e) =>
-                                        handleUpdateStudent(student.id, {
-                                          teamId: e.target.value,
-                                        })
-                                      }
-                                      className="rounded-lg border border-slate-200 bg-white px-1.5 py-0.5 text-[11px] font-semibold text-slate-700 dark:border-slate-700 dark:bg-navy-900 dark:text-slate-200"
-                                    >
-                                      {initialDataset.teams.map((t) => (
-                                        <option key={t.id} value={t.id}>
-                                          {t.short_name}
-                                        </option>
-                                      ))}
-                                    </select>
-
-                                    <button
-                                      type="button"
-                                      onClick={() =>
-                                        handleUpdateStudent(student.id, {
-                                          isActive: !student.is_active,
-                                        })
-                                      }
-                                      title={
-                                        student.is_active
-                                          ? "Mark inactive"
-                                          : "Restore active"
-                                      }
-                                      className="rounded px-1.5 py-0.5 text-[10px] font-semibold text-slate-500 hover:bg-slate-200/70 dark:hover:bg-navy-800"
-                                    >
-                                      {student.is_active ? "Archive" : "Restore"}
-                                    </button>
-                                  </div>
-                                </div>
-                              )}
-                            </div>
-                          );
-                        })}
-                      </div>
+                              <Edit3 className="h-3.5 w-3.5" />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() =>
+                                handleUpdateStudent(student.id, {
+                                  isActive: !student.is_active,
+                                })
+                              }
+                              className="rounded px-2 py-0.5 text-[11px] font-semibold text-slate-500 hover:bg-slate-200/70 dark:hover:bg-navy-800"
+                            >
+                              {student.is_active ? "Archive" : "Restore"}
+                            </button>
+                          </div>
+                        </div>
+                      )}
                     </div>
                   );
                 })}
               </div>
             </section>
 
-            {/* 3. Manage Subjects */}
+            {/* 3. Subjects */}
             <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-navy-900">
               <div className="flex flex-col gap-4 border-b border-slate-100 pb-4 sm:flex-row sm:items-center sm:justify-between dark:border-slate-800">
                 <div className="flex items-center gap-2">
@@ -1324,12 +1614,15 @@ export function AdminPanelClient({
                       IB MYP 3 Subjects
                     </h2>
                     <p className="text-xs text-slate-500 dark:text-slate-400">
-                      Add new subjects or hide inactive subjects from daily dropdowns.
+                      Add new subjects or hide inactive subjects.
                     </p>
                   </div>
                 </div>
 
-                <form onSubmit={handleAddSubject} className="flex flex-wrap items-center gap-2">
+                <form
+                  onSubmit={handleAddSubject}
+                  className="flex flex-wrap items-center gap-2"
+                >
                   <input
                     type="text"
                     required
@@ -1394,7 +1687,7 @@ export function AdminPanelClient({
               </div>
             </section>
 
-            {/* 4. Registered Accounts & Admins Management */}
+            {/* 4. Registered Accounts & Admins */}
             <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-navy-900">
               <div className="flex flex-col gap-4 border-b border-slate-100 pb-4 sm:flex-row sm:items-center sm:justify-between dark:border-slate-800">
                 <div className="flex items-center gap-2">
@@ -1404,12 +1697,15 @@ export function AdminPanelClient({
                       Registered Accounts &amp; Admins
                     </h2>
                     <p className="text-xs text-slate-500 dark:text-slate-400">
-                      Link your phone number for phone login, or grant co-leader Admin access (e.g. Fazliya).
+                      Default student password is 12345678. Reset forgotten passwords or promote co-admins.
                     </p>
                   </div>
                 </div>
 
-                <form onSubmit={handleSaveMyPhone} className="flex flex-wrap items-center gap-2">
+                <form
+                  onSubmit={handleSaveMyPhone}
+                  className="flex flex-wrap items-center gap-2"
+                >
                   <div className="relative">
                     <Phone className="pointer-events-none absolute left-3 top-2.5 h-3.5 w-3.5 text-slate-400" />
                     <input
@@ -1481,38 +1777,33 @@ export function AdminPanelClient({
                                 onClick={() => handleToggleUserRole(u)}
                                 className="rounded-lg border border-slate-200 px-2.5 py-1 text-[11px] font-bold text-slate-700 hover:bg-slate-100 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-navy-800"
                               >
-                                {u.role === "admin" ? "Make Student" : "Make Admin"}
+                                {u.role === "admin"
+                                  ? "Make Student"
+                                  : "Make Admin"}
                               </button>
                             </div>
                           )}
                         </td>
                       </tr>
                     ))}
-                    {appUsers.length === 0 && (
-                      <tr>
-                        <td colSpan={4} className="py-6 text-center text-slate-400">
-                          Connect Supabase and run schema.sql to view registered accounts.
-                        </td>
-                      </tr>
-                    )}
                   </tbody>
                 </table>
               </div>
             </section>
 
-            {/* 5. Danger Zone — Clear All Data */}
+            {/* 5. Clear Data (Reset Scores to 0) */}
             <section className="rounded-3xl border border-rose-200 bg-rose-50/40 p-6 shadow-sm dark:border-rose-900/50 dark:bg-rose-950/20">
               <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
                 <div className="flex items-start gap-3">
                   <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-rose-100 text-rose-600 dark:bg-rose-950 dark:text-rose-400">
-                    <Trash2 className="h-5 w-5" />
+                    <RotateCcw className="h-5 w-5" />
                   </div>
                   <div>
                     <h2 className="text-lg font-extrabold text-rose-900 dark:text-rose-200">
-                      Clear All Data (Reset Scores &amp; Weeks)
+                      Clear Data (Return Scores to 0)
                     </h2>
                     <p className="mt-0.5 text-xs text-rose-700/90 dark:text-rose-300/80">
-                      Wipes all awarded points, penalties, Team Combo Streaks, and resets weeks back to a fresh Week 1 while keeping your students, teams, and accounts safe.
+                      Resets all solo points back to 0 and restarts at Week 1. All students, schedules, subjects, and accounts stay 100% safe!
                     </p>
                   </div>
                 </div>
@@ -1525,7 +1816,7 @@ export function AdminPanelClient({
                   }}
                   className="inline-flex shrink-0 items-center gap-2 rounded-xl bg-rose-600 px-4 py-2.5 text-xs font-bold text-white shadow hover:bg-rose-500"
                 >
-                  <Trash2 className="h-4 w-4" />
+                  <RotateCcw className="h-4 w-4" />
                   Clear Data (Reset to 0)
                 </button>
               </div>
@@ -1534,7 +1825,7 @@ export function AdminPanelClient({
         )}
       </main>
 
-      {/* Clear All Data Confirmation Modal */}
+      {/* Clear Data Modal */}
       {showResetModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 p-4 backdrop-blur-sm">
           <div className="w-full max-w-md rounded-3xl border border-rose-200 bg-white p-6 shadow-2xl dark:border-rose-900/60 dark:bg-navy-900">
@@ -1548,7 +1839,7 @@ export function AdminPanelClient({
                     Return Site to Clean Start (0 Points)
                   </h3>
                   <p className="text-xs text-slate-500 dark:text-slate-400">
-                    Students, teams, subjects, and accounts will NOT be deleted.
+                    Students, schedules, subjects &amp; accounts will NOT be deleted.
                   </p>
                 </div>
               </div>
@@ -1565,7 +1856,7 @@ export function AdminPanelClient({
               <div className="rounded-2xl border border-emerald-200 bg-emerald-50/70 p-3.5 text-xs text-emerald-900 dark:border-emerald-900/50 dark:bg-emerald-950/40 dark:text-emerald-200">
                 <p className="font-bold">What stays 100% safe:</p>
                 <p className="mt-0.5">
-                  All 19 students, all 3 teams, all 7 subjects, and all user accounts &amp; passwords remain untouched. Only points &amp; combo streaks return to <strong>0</strong> (Week 1).
+                  All students, class schedules, subjects, and all user accounts &amp; passwords stay untouched. Only points return to <strong>0</strong> (Week 1).
                 </p>
               </div>
 
@@ -1595,14 +1886,15 @@ export function AdminPanelClient({
                 <button
                   type="submit"
                   disabled={
-                    clearingData || resetConfirmText.trim().toUpperCase() !== "RESET"
+                    clearingData ||
+                    resetConfirmText.trim().toUpperCase() !== "RESET"
                   }
                   className="inline-flex items-center gap-1.5 rounded-xl bg-rose-600 px-4 py-2 text-xs font-bold text-white shadow hover:bg-rose-500 disabled:opacity-50"
                 >
                   {clearingData ? (
                     <Loader2 className="h-4 w-4 animate-spin" />
                   ) : (
-                    "Clear All Data Now"
+                    "Reset Scores to 0"
                   )}
                 </button>
               </div>
@@ -1611,7 +1903,7 @@ export function AdminPanelClient({
         </div>
       )}
 
-      {/* Mandatory Reason Modal for -1 Fair-Play */}
+      {/* Fair-Play Modal */}
       {fairPlayTarget && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 p-4 backdrop-blur-sm">
           <div className="w-full max-w-md rounded-3xl border border-slate-200 bg-white p-6 shadow-2xl dark:border-slate-800 dark:bg-navy-900">
@@ -1625,7 +1917,7 @@ export function AdminPanelClient({
                     -1 Fair-Play Deduction: {fairPlayTarget.name}
                   </h3>
                   <p className="text-xs text-slate-500 dark:text-slate-400">
-                    Mandatory transparent reason (visible in Recent Activity Feed)
+                    Mandatory transparent reason (visible in Activity Feed)
                   </p>
                 </div>
               </div>
@@ -1682,7 +1974,9 @@ export function AdminPanelClient({
                 </button>
                 <button
                   type="submit"
-                  disabled={submittingFairPlay || fairPlayReason.trim().length < 3}
+                  disabled={
+                    submittingFairPlay || fairPlayReason.trim().length < 3
+                  }
                   className="inline-flex items-center gap-1.5 rounded-xl bg-rose-600 px-4 py-2 text-xs font-bold text-white shadow hover:bg-rose-500 disabled:opacity-50"
                 >
                   {submittingFairPlay ? (
@@ -1697,13 +1991,11 @@ export function AdminPanelClient({
         </div>
       )}
 
-      {/* Instant Toast Stack with Undo Button */}
+      {/* Instant Toast Stack */}
       <div className="fixed bottom-4 right-4 z-50 flex w-full max-w-sm flex-col gap-2.5 px-4 sm:px-0">
         {toasts.map((toast) => {
           const styles =
-            toast.variant === "combo"
-              ? "border-amber-400 bg-gradient-to-r from-amber-500 to-orange-500 text-white"
-              : toast.variant === "error"
+            toast.variant === "error"
               ? "border-rose-300 bg-rose-950 text-white"
               : toast.variant === "warning"
               ? "border-amber-300 bg-navy-900 text-white"
@@ -1714,18 +2006,20 @@ export function AdminPanelClient({
               key={toast.id}
               className={`flex items-center justify-between gap-3 rounded-2xl border p-4 shadow-2xl ${styles}`}
             >
-              <div className="flex items-start gap-2.5 min-w-0">
-                {toast.variant === "combo" ? (
-                  <Sparkles className="mt-0.5 h-5 w-5 shrink-0" />
-                ) : toast.variant === "error" ? (
+              <div className="flex min-w-0 items-start gap-2.5">
+                {toast.variant === "error" ? (
                   <AlertCircle className="mt-0.5 h-5 w-5 shrink-0 text-rose-400" />
                 ) : (
                   <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0 text-emerald-400" />
                 )}
                 <div className="min-w-0">
-                  <p className="truncate text-sm font-extrabold">{toast.title}</p>
+                  <p className="truncate text-sm font-extrabold">
+                    {toast.title}
+                  </p>
                   {toast.subtitle && (
-                    <p className="mt-0.5 text-xs opacity-85">{toast.subtitle}</p>
+                    <p className="mt-0.5 text-xs opacity-85">
+                      {toast.subtitle}
+                    </p>
                   )}
                 </div>
               </div>

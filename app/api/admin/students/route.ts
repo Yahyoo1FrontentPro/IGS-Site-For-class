@@ -16,13 +16,12 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    const body = (await req.json()) as { name?: unknown; teamId?: unknown };
+    const body = (await req.json()) as { name?: unknown };
     const name = typeof body.name === "string" ? body.name.trim() : "";
-    const teamId = typeof body.teamId === "string" ? body.teamId.trim() : "";
 
-    if (name.length < 2 || !teamId) {
+    if (name.length < 2) {
       return NextResponse.json(
-        { error: "Student name (at least 2 characters) and team are required." },
+        { error: "Student name (at least 2 characters) is required." },
         { status: 400 }
       );
     }
@@ -33,10 +32,9 @@ export async function POST(req: NextRequest) {
         .from("students")
         .insert({
           name,
-          team_id: teamId,
           is_active: true,
         })
-        .select("*")
+        .select("id, name, is_active, created_at")
         .single();
 
       if (error || !data) {
@@ -46,7 +44,6 @@ export async function POST(req: NextRequest) {
         );
       }
 
-      // Auto-create student login account with default password (12345678) if username is available
       const safeUsername = name.replace(/\s+/g, "_");
       const { data: existingAcc } = await supabase
         .from("app_users")
@@ -69,7 +66,6 @@ export async function POST(req: NextRequest) {
     const created = {
       id: generateId(),
       name,
-      team_id: teamId,
       is_active: true,
       created_at: new Date().toISOString(),
     };
@@ -90,7 +86,6 @@ export async function POST(req: NextRequest) {
     }
 
     writeLocalStore(store);
-
     return NextResponse.json({ student: created });
   } catch (err) {
     const message = err instanceof Error ? err.message : "Server error";
@@ -107,7 +102,6 @@ export async function PATCH(req: NextRequest) {
     const body = (await req.json()) as {
       studentId?: unknown;
       name?: unknown;
-      teamId?: unknown;
       isActive?: unknown;
     };
 
@@ -119,9 +113,6 @@ export async function PATCH(req: NextRequest) {
     const updates: Record<string, unknown> = {};
     if (typeof body.name === "string" && body.name.trim().length >= 2) {
       updates.name = body.name.trim();
-    }
-    if (typeof body.teamId === "string" && body.teamId.trim().length > 0) {
-      updates.team_id = body.teamId.trim();
     }
     if (typeof body.isActive === "boolean") {
       updates.is_active = body.isActive;
@@ -137,7 +128,7 @@ export async function PATCH(req: NextRequest) {
         .from("students")
         .update(updates)
         .eq("id", studentId)
-        .select("*")
+        .select("id, name, is_active, created_at")
         .single();
 
       if (error || !data) {
@@ -156,7 +147,6 @@ export async function PATCH(req: NextRequest) {
       return NextResponse.json({ error: "Student not found." }, { status: 404 });
     }
     if (typeof updates.name === "string") target.name = updates.name;
-    if (typeof updates.team_id === "string") target.team_id = updates.team_id;
     if (typeof updates.is_active === "boolean") target.is_active = updates.is_active;
     writeLocalStore(store);
 

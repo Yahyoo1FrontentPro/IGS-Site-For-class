@@ -1,5 +1,12 @@
 import { createClient, SupabaseClient } from "@supabase/supabase-js";
-import { HubDataset, PointLog, Student, Subject, Team, TeamBonus, Week } from "@/types";
+import {
+  ClassSchedule,
+  HubDataset,
+  PointLog,
+  Student,
+  Subject,
+  Week,
+} from "@/types";
 import { getLocalHubDataset } from "@/lib/local-store";
 
 function isPlaceholder(val: string | undefined): boolean {
@@ -67,54 +74,50 @@ export function getSupabaseAdminClient(): SupabaseClient {
 export async function fetchHubDataset(): Promise<HubDataset> {
   const client = getSupabaseServerReadClient();
   if (!client) {
-    // Built-in zero-config local database store (works out-of-the-box without Supabase keys)
     return getLocalHubDataset();
   }
 
   try {
-    const [
-      teamsRes,
-      studentsRes,
-      subjectsRes,
-      weeksRes,
-      logsRes,
-      bonusesRes,
-    ] = await Promise.all([
-      client.from("teams").select("*").order("sort_order", { ascending: true }),
-      client.from("students").select("*").order("name", { ascending: true }),
-      client.from("subjects").select("*").order("sort_order", { ascending: true }),
-      client.from("weeks").select("*").order("week_number", { ascending: true }),
-      client
-        .from("point_logs")
-        .select("*")
-        .order("created_at", { ascending: false })
-        .limit(5000),
-      client
-        .from("team_bonuses")
-        .select("*")
-        .order("date", { ascending: false })
-        .limit(1000),
-    ]);
+    const [studentsRes, subjectsRes, weeksRes, logsRes, schedulesRes] =
+      await Promise.all([
+        client.from("students").select("id, name, is_active, created_at").order("name", { ascending: true }),
+        client.from("subjects").select("*").order("sort_order", { ascending: true }),
+        client.from("weeks").select("*").order("week_number", { ascending: true }),
+        client
+          .from("point_logs")
+          .select("id, student_id, subject_id, week_id, points, category, reason, date, created_at")
+          .order("created_at", { ascending: false })
+          .limit(5000),
+        client
+          .from("schedules")
+          .select("*")
+          .order("created_at", { ascending: false }),
+      ]);
 
-    const firstError =
-      teamsRes.error ||
-      studentsRes.error ||
-      subjectsRes.error ||
-      weeksRes.error ||
-      logsRes.error ||
-      bonusesRes.error;
+    const coreError =
+      studentsRes.error || subjectsRes.error || weeksRes.error || logsRes.error;
 
-    if (firstError) {
+    if (coreError) {
       return getLocalHubDataset();
     }
 
+    const parsedSchedules: ClassSchedule[] = (schedulesRes.data ?? []).map(
+      (row: Record<string, unknown>) => ({
+        id: String(row.id),
+        title: String(row.title ?? "Class Schedule"),
+        image_url: typeof row.image_url === "string" ? row.image_url : null,
+        entries: Array.isArray(row.entries) ? (row.entries as ClassSchedule["entries"]) : [],
+        is_active: Boolean(row.is_active),
+        created_at: String(row.created_at ?? ""),
+      })
+    );
+
     return {
-      teams: (teamsRes.data ?? []) as Team[],
       students: (studentsRes.data ?? []) as Student[],
       subjects: (subjectsRes.data ?? []) as Subject[],
       weeks: (weeksRes.data ?? []) as Week[],
       pointLogs: (logsRes.data ?? []) as PointLog[],
-      teamBonuses: (bonusesRes.data ?? []) as TeamBonus[],
+      schedules: parsedSchedules,
       isConfigured: true,
     };
   } catch {

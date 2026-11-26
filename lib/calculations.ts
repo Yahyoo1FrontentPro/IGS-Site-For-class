@@ -1,17 +1,23 @@
 import {
   ActivityFeedItem,
-  FairnessMode,
+  DayOfWeek,
   MostImprovedResult,
   PointLog,
   Student,
   StudentScoreRow,
   Subject,
   SubjectChampion,
-  Team,
-  TeamBonus,
-  TeamStanding,
   Week,
 } from "@/types";
+
+export const DAYS_OF_WEEK: DayOfWeek[] = [
+  "Monday",
+  "Tuesday",
+  "Wednesday",
+  "Thursday",
+  "Friday",
+  "Saturday",
+];
 
 export function filterByWeek<T extends { week_id: string }>(
   items: T[],
@@ -21,76 +27,11 @@ export function filterByWeek<T extends { week_id: string }>(
   return items.filter((item) => item.week_id === selectedWeekId);
 }
 
-export function calculateTeamStandings(
-  teams: Team[],
-  students: Student[],
-  pointLogs: PointLog[],
-  teamBonuses: TeamBonus[],
-  fairnessMode: FairnessMode
-): TeamStanding[] {
-  const activeStudents = students.filter((s) => s.is_active);
-
-  const rawStandings: Omit<TeamStanding, "rank">[] = teams.map((team) => {
-    const teamMembers = activeStudents.filter((s) => s.team_id === team.id);
-    const memberCount = teamMembers.length;
-
-    const studentPoints = pointLogs
-      .filter((log) => log.team_id === team.id)
-      .reduce((sum, log) => sum + log.points, 0);
-
-    const teamBonusRows = teamBonuses.filter((b) => b.team_id === team.id);
-    const bonusPoints = teamBonusRows.reduce((sum, b) => sum + b.points, 0);
-    const comboCount = teamBonusRows.length;
-
-    const totalPoints = studentPoints + bonusPoints;
-    const divisor = Math.max(1, memberCount);
-    const averagePoints = Number((totalPoints / divisor).toFixed(2));
-
-    return {
-      team,
-      memberCount,
-      studentPoints,
-      bonusPoints,
-      comboCount,
-      totalPoints,
-      averagePoints,
-    };
-  });
-
-  const sorted = [...rawStandings].sort((a, b) => {
-    if (fairnessMode === "average") {
-      if (b.averagePoints !== a.averagePoints) return b.averagePoints - a.averagePoints;
-      if (b.totalPoints !== a.totalPoints) return b.totalPoints - a.totalPoints;
-    } else {
-      if (b.totalPoints !== a.totalPoints) return b.totalPoints - a.totalPoints;
-      if (b.averagePoints !== a.averagePoints) return b.averagePoints - a.averagePoints;
-    }
-    if (b.comboCount !== a.comboCount) return b.comboCount - a.comboCount;
-    return a.team.sort_order - b.team.sort_order;
-  });
-
-  return sorted.map((item, idx) => ({
-    ...item,
-    rank: idx + 1,
-  }));
-}
-
 export function calculateStudentLeaderboard(
   students: Student[],
-  teams: Team[],
   pointLogs: PointLog[],
   filterSubjectId?: string
 ): StudentScoreRow[] {
-  const teamMap = new Map(teams.map((t) => [t.id, t]));
-  const fallbackTeam: Team = teams[0] ?? {
-    id: "unknown",
-    name: "Unassigned",
-    short_name: "Team",
-    color: "#64748B",
-    sort_order: 99,
-    created_at: "",
-  };
-
   const relevantLogs =
     filterSubjectId && filterSubjectId !== "all"
       ? pointLogs.filter((l) => l.subject_id === filterSubjectId)
@@ -126,7 +67,6 @@ export function calculateStudentLeaderboard(
 
     return {
       student,
-      team: teamMap.get(student.team_id) ?? fallbackTeam,
       totalPoints,
       positivePoints,
       penaltyPoints,
@@ -169,10 +109,8 @@ export function calculateOverallMVP(leaderboard: StudentScoreRow[]): StudentScor
 export function calculateSubjectChampions(
   subjects: Subject[],
   students: Student[],
-  teams: Team[],
   pointLogs: PointLog[]
 ): SubjectChampion[] {
-  const teamMap = new Map(teams.map((t) => [t.id, t]));
   const activeStudents = students.filter((s) => s.is_active);
   const visibleSubjects = subjects.filter((sub) => !sub.is_hidden);
 
@@ -182,7 +120,6 @@ export function calculateSubjectChampions(
       return {
         subject,
         student: null,
-        team: null,
         points: 0,
         tiedCount: 0,
       };
@@ -208,7 +145,6 @@ export function calculateSubjectChampions(
       return {
         subject,
         student: null,
-        team: null,
         points: 0,
         tiedCount: 0,
       };
@@ -219,7 +155,6 @@ export function calculateSubjectChampions(
     return {
       subject,
       student: winner.student,
-      team: teamMap.get(winner.student.team_id) ?? null,
       points: winner.pts,
       tiedCount,
     };
@@ -230,7 +165,6 @@ export function calculateMostImproved(
   selectedWeekId: string,
   weeks: Week[],
   students: Student[],
-  teams: Team[],
   allPointLogs: PointLog[]
 ): MostImprovedResult {
   if (selectedWeekId === "all") {
@@ -240,15 +174,13 @@ export function calculateMostImproved(
         hasPreviousWeek: false,
         previousWeekName: null,
         student: null,
-        team: null,
         currentPoints: 0,
         previousPoints: 0,
         delta: 0,
       };
     }
-    // In All-Time mode, compare the latest active/most recent week against its predecessor
     const activeOrLatest = weeks.find((w) => w.is_active) ?? sortedWeeks[0];
-    return calculateMostImproved(activeOrLatest.id, weeks, students, teams, allPointLogs);
+    return calculateMostImproved(activeOrLatest.id, weeks, students, allPointLogs);
   }
 
   const currentWeek = weeks.find((w) => w.id === selectedWeekId);
@@ -257,7 +189,6 @@ export function calculateMostImproved(
       hasPreviousWeek: false,
       previousWeekName: null,
       student: null,
-      team: null,
       currentPoints: 0,
       previousPoints: 0,
       delta: 0,
@@ -274,14 +205,12 @@ export function calculateMostImproved(
       hasPreviousWeek: false,
       previousWeekName: null,
       student: null,
-      team: null,
       currentPoints: 0,
       previousPoints: 0,
       delta: 0,
     };
   }
 
-  const teamMap = new Map(teams.map((t) => [t.id, t]));
   const currentLogs = allPointLogs.filter((l) => l.week_id === currentWeek.id);
   const prevLogs = allPointLogs.filter((l) => l.week_id === prevWeek.id);
   const activeStudents = students.filter((s) => s.is_active);
@@ -309,7 +238,6 @@ export function calculateMostImproved(
       hasPreviousWeek: true,
       previousWeekName: prevWeek.name,
       student: null,
-      team: null,
       currentPoints: 0,
       previousPoints: 0,
       delta: 0,
@@ -320,7 +248,6 @@ export function calculateMostImproved(
     hasPreviousWeek: true,
     previousWeekName: prevWeek.name,
     student: best.student,
-    team: teamMap.get(best.student.team_id) ?? null,
     currentPoints: best.currentPoints,
     previousPoints: best.previousPoints,
     delta: best.delta,
@@ -329,61 +256,39 @@ export function calculateMostImproved(
 
 export function buildActivityFeed(
   pointLogs: PointLog[],
-  teamBonuses: TeamBonus[],
   students: Student[],
-  teams: Team[],
   subjects: Subject[],
   limit = 25
 ): ActivityFeedItem[] {
   const studentMap = new Map(students.map((s) => [s.id, s]));
-  const teamMap = new Map(teams.map((t) => [t.id, t]));
   const subjectMap = new Map(subjects.map((sub) => [sub.id, sub]));
 
-  const fallbackTeam: Team = teams[0] ?? {
-    id: "unknown",
-    name: "Team",
-    short_name: "Team",
-    color: "#64748B",
-    sort_order: 1,
-    created_at: "",
-  };
+  return pointLogs
+    .map((log) => {
+      const student = studentMap.get(log.student_id);
+      const subject = subjectMap.get(log.subject_id);
 
-  const logItems: ActivityFeedItem[] = pointLogs.map((log) => {
-    const student = studentMap.get(log.student_id);
-    const team = teamMap.get(log.team_id) ?? (student ? teamMap.get(student.team_id) : undefined) ?? fallbackTeam;
-    const subject = subjectMap.get(log.subject_id);
-
-    return {
-      id: `log-${log.id}`,
-      type: "point",
-      studentName: student?.name ?? "Student",
-      team,
-      subjectName: subject?.name ?? "General",
-      category: log.category,
-      points: log.points,
-      reason: log.reason,
-      date: log.date,
-      createdAt: log.created_at,
-    };
-  });
-
-  const bonusItems: ActivityFeedItem[] = teamBonuses.map((bonus) => {
-    const team = teamMap.get(bonus.team_id) ?? fallbackTeam;
-    return {
-      id: `bonus-${bonus.id}`,
-      type: "bonus",
-      team,
-      category: "Combo Streak",
-      points: bonus.points,
-      reason: bonus.reason,
-      date: bonus.date,
-      createdAt: bonus.created_at,
-    };
-  });
-
-  return [...logItems, ...bonusItems]
+      return {
+        id: log.id,
+        studentName: student?.name ?? "Student",
+        subjectName: subject?.name ?? "General",
+        category: log.category,
+        points: log.points,
+        reason: log.reason,
+        date: log.date,
+        createdAt: log.created_at,
+      };
+    })
     .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
     .slice(0, limit);
+}
+
+export function getCurrentDayOfWeek(): DayOfWeek {
+  const dayIdx = new Date().getDay(); // 0 = Sun, 1 = Mon ... 6 = Sat
+  if (dayIdx >= 1 && dayIdx <= 6) {
+    return DAYS_OF_WEEK[dayIdx - 1];
+  }
+  return "Monday";
 }
 
 export function formatShortDate(dateStr: string): string {

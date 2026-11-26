@@ -5,8 +5,8 @@ import { getSupabaseAdminClient, isSupabaseAdminConfigured } from "@/lib/supabas
 import { getTodayDateISO } from "@/lib/calculations";
 
 /**
- * Resets the site back to its clean starting state (0 points, 0 combo streaks, fresh Week 1)
- * WITHOUT ever deleting students, teams, subjects, or user accounts.
+ * Resets all solo scores back to 0 and returns to clean Week 1
+ * WITHOUT deleting any students, subjects, schedules, or accounts.
  */
 export async function POST(req: NextRequest) {
   if (!isAdminAuthenticated()) {
@@ -17,10 +17,7 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    const body = (await req.json()) as {
-      confirmText?: unknown;
-    };
-
+    const body = (await req.json()) as { confirmText?: unknown };
     const confirmText =
       typeof body.confirmText === "string"
         ? body.confirmText.trim().toUpperCase()
@@ -41,26 +38,15 @@ export async function POST(req: NextRequest) {
     if (isSupabaseAdminConfigured()) {
       const supabase = getSupabaseAdminClient();
 
-      // 1. Clear ONLY score logs and combo bonuses (NEVER touch students, teams, subjects, or app_users!)
-      const [delLogs, delBonuses] = await Promise.all([
-        supabase
-          .from("point_logs")
-          .delete()
-          .neq("id", "00000000-0000-0000-0000-000000000000"),
-        supabase
-          .from("team_bonuses")
-          .delete()
-          .neq("id", "00000000-0000-0000-0000-000000000000"),
-      ]);
+      const { error: delErr } = await supabase
+        .from("point_logs")
+        .delete()
+        .neq("id", "00000000-0000-0000-0000-000000000000");
 
-      if (delLogs.error) {
-        return NextResponse.json({ error: delLogs.error.message }, { status: 500 });
-      }
-      if (delBonuses.error) {
-        return NextResponse.json({ error: delBonuses.error.message }, { status: 500 });
+      if (delErr) {
+        return NextResponse.json({ error: delErr.message }, { status: 500 });
       }
 
-      // 2. Return weeks back to clean Week 1
       await supabase
         .from("weeks")
         .delete()
@@ -82,7 +68,6 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: weekErr.message }, { status: 500 });
       }
 
-      // 3. Ensure all existing students & subjects are active/visible just like initial state
       await Promise.all([
         supabase
           .from("students")
@@ -100,10 +85,8 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    // Local Store Fallback — keep all students, teams, subjects & accounts intact
     const store = readLocalStore();
     store.pointLogs = [];
-    store.teamBonuses = [];
     store.students = store.students.map((s) => ({ ...s, is_active: true }));
     store.subjects = store.subjects.map((sub) => ({ ...sub, is_hidden: false }));
 
@@ -117,7 +100,6 @@ export async function POST(req: NextRequest) {
       created_at: new Date().toISOString(),
     };
     store.weeks = [freshWeek];
-
     writeLocalStore(store);
 
     return NextResponse.json({

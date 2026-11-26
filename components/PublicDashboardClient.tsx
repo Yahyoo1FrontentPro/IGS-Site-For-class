@@ -7,19 +7,16 @@ import {
   Award,
   BookOpen,
   Calendar,
+  CalendarDays,
   CheckCircle2,
   Crown,
   FileText,
-  Filter,
-  Flame,
   GraduationCap,
-  Info,
   LogIn,
   LogOut,
   Medal,
   MonitorPlay,
   RefreshCw,
-  Scale,
   Search,
   ShieldCheck,
   Sparkles,
@@ -28,26 +25,20 @@ import {
   Trophy,
   User,
   UserPlus,
-  Users,
-  Zap,
 } from "lucide-react";
-import {
-  FairnessMode,
-  HubDataset,
-  SessionUser,
-} from "@/types";
+import { HubDataset, SessionUser } from "@/types";
 import {
   buildActivityFeed,
   calculateMostImproved,
   calculateOverallMVP,
   calculateStudentLeaderboard,
   calculateSubjectChampions,
-  calculateTeamStandings,
   filterByWeek,
   formatShortDate,
   formatTimestampRelative,
 } from "@/lib/calculations";
-import { TeamRaceChart } from "@/components/TeamRaceChart";
+import { SoloRaceChart } from "@/components/TeamRaceChart";
+import { ScheduleViewer } from "@/components/ScheduleViewer";
 import { ThemeToggle } from "@/components/ThemeToggle";
 
 interface PublicDashboardClientProps {
@@ -63,14 +54,17 @@ export function PublicDashboardClient({
   const [isRefreshing, startTransition] = useTransition();
 
   const activeWeek = useMemo(
-    () => dataset.weeks.find((w) => w.is_active) ?? dataset.weeks[dataset.weeks.length - 1],
+    () =>
+      dataset.weeks.find((w) => w.is_active) ??
+      dataset.weeks[dataset.weeks.length - 1],
     [dataset.weeks]
   );
 
-  const [selectedWeekId, setSelectedWeekId] = useState<string>(activeWeek?.id ?? "all");
-  const [fairnessMode, setFairnessMode] = useState<FairnessMode>("average");
-  const [selectedTeamFilter, setSelectedTeamFilter] = useState<string>("all");
-  const [selectedSubjectFilter, setSelectedSubjectFilter] = useState<string>("all");
+  const [selectedWeekId, setSelectedWeekId] = useState<string>(
+    activeWeek?.id ?? "all"
+  );
+  const [selectedSubjectFilter, setSelectedSubjectFilter] =
+    useState<string>("all");
   const [searchQuery, setSearchQuery] = useState<string>("");
 
   const weekPointLogs = useMemo(
@@ -78,79 +72,49 @@ export function PublicDashboardClient({
     [dataset.pointLogs, selectedWeekId]
   );
 
-  const weekTeamBonuses = useMemo(
-    () => filterByWeek(dataset.teamBonuses, selectedWeekId),
-    [dataset.teamBonuses, selectedWeekId]
-  );
-
-  const standings = useMemo(
-    () =>
-      calculateTeamStandings(
-        dataset.teams,
-        dataset.students,
-        weekPointLogs,
-        weekTeamBonuses,
-        fairnessMode
-      ),
-    [dataset.teams, dataset.students, weekPointLogs, weekTeamBonuses, fairnessMode]
-  );
-
   const overallLeaderboard = useMemo(
     () =>
-      calculateStudentLeaderboard(
-        dataset.students,
-        dataset.teams,
-        weekPointLogs,
-        "all"
-      ),
-    [dataset.students, dataset.teams, weekPointLogs]
+      calculateStudentLeaderboard(dataset.students, weekPointLogs, "all"),
+    [dataset.students, weekPointLogs]
   );
 
   const filteredLeaderboard = useMemo(() => {
     const base = calculateStudentLeaderboard(
       dataset.students,
-      dataset.teams,
       weekPointLogs,
       selectedSubjectFilter
     );
     return base.filter((row) => {
-      if (selectedTeamFilter !== "all" && row.team.id !== selectedTeamFilter) {
-        return false;
-      }
       if (
         searchQuery.trim().length > 0 &&
-        !row.student.name.toLowerCase().includes(searchQuery.trim().toLowerCase())
+        !row.student.name
+          .toLowerCase()
+          .includes(searchQuery.trim().toLowerCase())
       ) {
         return false;
       }
       return true;
     });
-  }, [
-    dataset.students,
-    dataset.teams,
-    weekPointLogs,
-    selectedSubjectFilter,
-    selectedTeamFilter,
-    searchQuery,
-  ]);
+  }, [dataset.students, weekPointLogs, selectedSubjectFilter, searchQuery]);
 
-  const mvp = useMemo(() => calculateOverallMVP(overallLeaderboard), [overallLeaderboard]);
+  const mvp = useMemo(
+    () => calculateOverallMVP(overallLeaderboard),
+    [overallLeaderboard]
+  );
 
-  const winningTeam = useMemo(() => {
-    const top = standings[0];
-    if (!top || top.totalPoints <= 0) return null;
-    return top;
-  }, [standings]);
+  const top3Podium = useMemo(
+    () => overallLeaderboard.slice(0, 3),
+    [overallLeaderboard]
+  );
 
   const subjectChampions = useMemo(
     () =>
       calculateSubjectChampions(
         dataset.subjects,
         dataset.students,
-        dataset.teams,
         weekPointLogs
       ),
-    [dataset.subjects, dataset.students, dataset.teams, weekPointLogs]
+    [dataset.subjects, dataset.students, weekPointLogs]
   );
 
   const mostImproved = useMemo(
@@ -159,23 +123,34 @@ export function PublicDashboardClient({
         selectedWeekId,
         dataset.weeks,
         dataset.students,
-        dataset.teams,
         dataset.pointLogs
       ),
-    [selectedWeekId, dataset.weeks, dataset.students, dataset.teams, dataset.pointLogs]
+    [selectedWeekId, dataset.weeks, dataset.students, dataset.pointLogs]
   );
+
+  const topActiveStudent = useMemo(() => {
+    if (overallLeaderboard.length === 0) return null;
+    const sorted = [...overallLeaderboard].sort((a, b) => {
+      const aTotalActs = a.activeCount + a.starCount + a.aceCount + a.dutyCount;
+      const bTotalActs = b.activeCount + b.starCount + b.aceCount + b.dutyCount;
+      if (bTotalActs !== aTotalActs) return bTotalActs - aTotalActs;
+      return b.totalPoints - a.totalPoints;
+    });
+    const best = sorted[0];
+    const count =
+      best.activeCount + best.starCount + best.aceCount + best.dutyCount;
+    return count > 0 ? { row: best, count } : null;
+  }, [overallLeaderboard]);
 
   const activityFeed = useMemo(
     () =>
       buildActivityFeed(
         weekPointLogs,
-        weekTeamBonuses,
         dataset.students,
-        dataset.teams,
         dataset.subjects,
         24
       ),
-    [weekPointLogs, weekTeamBonuses, dataset.students, dataset.teams, dataset.subjects]
+    [weekPointLogs, dataset.students, dataset.subjects]
   );
 
   const selectedWeekObj = useMemo(
@@ -218,7 +193,7 @@ export function PublicDashboardClient({
                 </span>
               </div>
               <p className="text-xs text-slate-500 dark:text-slate-400">
-                IB Middle Years Programme • Transparent House Points, Combo Streaks &amp; Weekly Honors
+                IB Middle Years Programme • Individual Solo Standings, Class Schedule &amp; Weekly Honors
               </p>
             </div>
           </div>
@@ -250,8 +225,18 @@ export function PublicDashboardClient({
               title="Refresh live scores"
               className="inline-flex items-center justify-center rounded-xl border border-slate-200 bg-white p-2 text-slate-700 shadow-sm transition hover:bg-slate-100 disabled:opacity-50 dark:border-slate-800 dark:bg-navy-900 dark:text-slate-200 dark:hover:bg-navy-800"
             >
-              <RefreshCw className={`h-4 w-4 ${isRefreshing ? "animate-spin text-blue-600" : ""}`} />
+              <RefreshCw
+                className={`h-4 w-4 ${isRefreshing ? "animate-spin text-blue-600" : ""}`}
+              />
             </button>
+
+            <Link
+              href="/schedule"
+              className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 shadow-sm transition hover:bg-slate-100 sm:text-sm dark:border-slate-700 dark:bg-navy-800 dark:text-slate-200 dark:hover:bg-navy-700"
+            >
+              <CalendarDays className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+              <span>Schedule</span>
+            </Link>
 
             <Link
               href={`/report?week=${encodeURIComponent(selectedWeekId)}`}
@@ -266,7 +251,7 @@ export function PublicDashboardClient({
               className="inline-flex items-center gap-1.5 rounded-xl bg-indigo-600 px-3.5 py-2 text-xs font-semibold text-white shadow-sm transition hover:bg-indigo-500 sm:text-sm"
             >
               <MonitorPlay className="h-4 w-4" />
-              <span>Classroom TV Mode</span>
+              <span>TV Mode</span>
             </Link>
 
             {sessionUser ? (
@@ -277,7 +262,7 @@ export function PublicDashboardClient({
                     className="inline-flex items-center gap-1.5 rounded-xl bg-navy-800 px-3.5 py-2 text-xs font-semibold text-white shadow-sm transition hover:bg-navy-700 sm:text-sm dark:bg-blue-600 dark:hover:bg-blue-500"
                   >
                     <ShieldCheck className="h-4 w-4" />
-                    <span>Admin Console</span>
+                    <span>Admin</span>
                   </Link>
                 )}
                 <Link
@@ -322,31 +307,19 @@ export function PublicDashboardClient({
       </header>
 
       <main className="mx-auto max-w-7xl space-y-8 px-4 py-6 sm:px-6 lg:px-8">
-        {/* Database Setup Status Banner (only shown if .env.local not yet connected) */}
-        {!dataset.isConfigured && (
-          <div className="rounded-2xl border border-amber-300 bg-amber-50/90 p-4 text-amber-950 shadow-sm dark:border-amber-800/70 dark:bg-amber-950/40 dark:text-amber-200">
-            <div className="flex items-start gap-3">
-              <Info className="mt-0.5 h-5 w-5 shrink-0 text-amber-600 dark:text-amber-400" />
-              <div className="text-sm">
-                <p className="font-bold">Preview Mode Active — Connect Supabase for Live Persistence</p>
-                <p className="mt-0.5 text-xs opacity-90">
-                  {dataset.errorMessage}
-                </p>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Selected Period Sub-banner */}
+        {/* Selected Period Banner */}
         <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-200/80 bg-white px-5 py-3.5 shadow-sm dark:border-slate-800 dark:bg-navy-900">
           <div className="flex flex-wrap items-center gap-3">
             <span className="inline-flex items-center gap-1.5 rounded-lg bg-blue-50 px-3 py-1 text-xs font-bold text-blue-700 dark:bg-blue-950/60 dark:text-blue-300">
               <Sparkles className="h-3.5 w-3.5" />
-              {selectedWeekId === "all" ? "All-Time Standings" : selectedWeekObj?.name ?? "Weekly View"}
+              {selectedWeekId === "all"
+                ? "All-Time Solo Standings"
+                : selectedWeekObj?.name ?? "Weekly View"}
             </span>
             {selectedWeekObj && (
               <span className="text-xs font-medium text-slate-500 dark:text-slate-400">
-                {formatShortDate(selectedWeekObj.start_date)} – {formatShortDate(selectedWeekObj.end_date)}
+                {formatShortDate(selectedWeekObj.start_date)} –{" "}
+                {formatShortDate(selectedWeekObj.end_date)}
               </span>
             )}
           </div>
@@ -355,198 +328,118 @@ export function PublicDashboardClient({
               <strong className="text-slate-800 dark:text-slate-200">
                 {dataset.students.filter((s) => s.is_active).length}
               </strong>{" "}
-              Active Students
+              Solo Competitors
             </span>
             <span>•</span>
             <span>
               <strong className="text-slate-800 dark:text-slate-200">
                 {weekPointLogs.length}
               </strong>{" "}
-              Logs Recorded
-            </span>
-            <span>•</span>
-            <span>
-              <strong className="text-amber-600 dark:text-amber-400">
-                {weekTeamBonuses.length}
-              </strong>{" "}
-              Team Combos
+              Activity Logs
             </span>
           </div>
         </div>
 
-        {/* SECTION 1: LIVE 3-TEAM HOUSE RACE */}
+        {/* SECTION 1: LIVE SOLO STANDINGS RACE & TOP 3 PODIUM */}
         <section className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm sm:p-7 dark:border-slate-800 dark:bg-navy-900">
-          <div className="flex flex-col gap-4 border-b border-slate-100 pb-5 md:flex-row md:items-center md:justify-between dark:border-slate-800">
-            <div>
-              <div className="flex items-center gap-2">
-                <Trophy className="h-5 w-5 text-amber-500" />
-                <h2 className="text-xl font-extrabold tracking-tight text-slate-900 dark:text-white">
-                  Live 3-Team House Race
-                </h2>
-              </div>
-              <p className="mt-1 text-xs text-slate-500 sm:text-sm dark:text-slate-400">
-                Dynamic fairness system accounting for unequal team sizes (6 vs 7 students) plus +5 Team Combo Streaks.
-              </p>
+          <div className="border-b border-slate-100 pb-4 dark:border-slate-800">
+            <div className="flex items-center gap-2">
+              <Trophy className="h-5 w-5 text-amber-500" />
+              <h2 className="text-xl font-extrabold tracking-tight text-slate-900 dark:text-white">
+                Live MYP 3 Solo Standings Race
+              </h2>
             </div>
-
-            {/* Fairness Toggle Switch */}
-            <div className="flex flex-col items-start gap-1.5 sm:items-end">
-              <div
-                role="group"
-                aria-label="Fairness scoring mode"
-                className="inline-flex rounded-xl border border-slate-200 bg-slate-100 p-1 dark:border-slate-700 dark:bg-navy-950"
-              >
-                <button
-                  type="button"
-                  onClick={() => setFairnessMode("average")}
-                  className={`inline-flex items-center gap-1.5 rounded-lg px-3.5 py-1.5 text-xs font-bold transition sm:text-sm ${
-                    fairnessMode === "average"
-                      ? "bg-white text-navy-900 shadow-sm dark:bg-blue-600 dark:text-white"
-                      : "text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white"
-                  }`}
-                >
-                  <Scale className="h-3.5 w-3.5" />
-                  Fair Average (Pts / Student)
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setFairnessMode("total")}
-                  className={`inline-flex items-center gap-1.5 rounded-lg px-3.5 py-1.5 text-xs font-bold transition sm:text-sm ${
-                    fairnessMode === "total"
-                      ? "bg-white text-navy-900 shadow-sm dark:bg-blue-600 dark:text-white"
-                      : "text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white"
-                  }`}
-                >
-                  <Zap className="h-3.5 w-3.5" />
-                  Total Points
-                </button>
-              </div>
-              <span className="text-[11px] text-slate-400 dark:text-slate-500">
-                Ranking sorted by{" "}
-                <strong className="text-slate-600 dark:text-slate-300">
-                  {fairnessMode === "average" ? "Average Points per Member" : "Raw Total Points"}
-                </strong>
-              </span>
-            </div>
+            <p className="mt-1 text-xs text-slate-500 sm:text-sm dark:text-slate-400">
+              Every student competes individually based on classroom participation, achievements, and class duty.
+            </p>
           </div>
 
-          {/* Recharts Animated Horizontal Bar Chart */}
-          <div className="mt-5">
-            <TeamRaceChart standings={standings} fairnessMode={fairnessMode} height={225} />
-          </div>
+          {/* Top 3 Solo Podium Cards */}
+          <div className="mt-5 grid grid-cols-1 gap-4 md:grid-cols-3">
+            {top3Podium.map((item, idx) => {
+              const rankColors =
+                idx === 0
+                  ? "border-amber-300 bg-gradient-to-br from-amber-50/70 via-white to-white dark:border-amber-600/50 dark:from-amber-950/25 dark:via-navy-900 dark:to-navy-900"
+                  : idx === 1
+                  ? "border-indigo-200 bg-gradient-to-br from-indigo-50/50 via-white to-white dark:border-indigo-700/50 dark:from-indigo-950/25 dark:via-navy-900 dark:to-navy-900"
+                  : "border-emerald-200 bg-gradient-to-br from-emerald-50/50 via-white to-white dark:border-emerald-700/50 dark:from-emerald-950/25 dark:via-navy-900 dark:to-navy-900";
 
-          {/* 3 Team Detail Cards Showing BOTH Fair Average & Total Points */}
-          <div className="mt-6 grid grid-cols-1 gap-4 md:grid-cols-3">
-            {standings.map((item) => {
-              const isFirst = item.rank === 1 && item.totalPoints > 0;
+              const pillColors =
+                idx === 0
+                  ? "bg-amber-500 text-white"
+                  : idx === 1
+                  ? "bg-indigo-600 text-white"
+                  : "bg-emerald-600 text-white";
+
               return (
                 <div
-                  key={item.team.id}
-                  className={`relative overflow-hidden rounded-2xl border p-5 transition ${
-                    isFirst
-                      ? "border-amber-300 bg-gradient-to-br from-amber-50/60 via-white to-white shadow-md dark:border-amber-600/50 dark:from-amber-950/20 dark:via-navy-900 dark:to-navy-900"
-                      : "border-slate-200 bg-slate-50/60 dark:border-slate-800 dark:bg-navy-950/60"
-                  }`}
+                  key={item.student.id}
+                  className={`rounded-2xl border p-5 shadow-sm ${rankColors}`}
                 >
-                  <div
-                    className="absolute inset-x-0 top-0 h-1.5"
-                    style={{ backgroundColor: item.team.color }}
-                  />
-                  <div className="flex items-start justify-between gap-2">
-                    <div>
-                      <div className="flex items-center gap-2">
-                        <span
-                          className="inline-flex items-center rounded-md px-2 py-0.5 text-xs font-extrabold text-white"
-                          style={{ backgroundColor: item.team.color }}
-                        >
-                          #{item.rank}
-                        </span>
-                        <span className="text-xs font-semibold uppercase tracking-wider text-slate-400">
-                          {item.team.short_name}
-                        </span>
-                      </div>
-                      <h3 className="mt-1.5 text-lg font-extrabold text-slate-900 dark:text-white">
-                        {item.team.name}
-                      </h3>
-                    </div>
-
-                    <span className="inline-flex items-center gap-1 rounded-full border border-slate-200 bg-white px-2.5 py-1 text-xs font-semibold text-slate-600 dark:border-slate-700 dark:bg-navy-800 dark:text-slate-300">
-                      <Users className="h-3.5 w-3.5" />
-                      {item.memberCount} members
-                    </span>
-                  </div>
-
-                  {/* Both Metrics Clearly Displayed */}
-                  <div className="mt-4 grid grid-cols-2 gap-3">
-                    <div
-                      className={`rounded-xl p-3 ${
-                        fairnessMode === "average"
-                          ? "bg-white ring-2 ring-blue-500/30 shadow-sm dark:bg-navy-800"
-                          : "bg-white/70 dark:bg-navy-900/80"
-                      }`}
+                  <div className="flex items-center justify-between">
+                    <span
+                      className={`inline-flex items-center gap-1 rounded-lg px-2.5 py-1 text-xs font-black ${pillColors}`}
                     >
-                      <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
-                        Fair Average
-                      </p>
-                      <p className="mt-0.5 text-2xl font-black text-slate-900 dark:text-white">
-                        {item.averagePoints.toFixed(2)}
-                      </p>
-                      <p className="text-[11px] text-slate-400">pts / student</p>
-                    </div>
-
-                    <div
-                      className={`rounded-xl p-3 ${
-                        fairnessMode === "total"
-                          ? "bg-white ring-2 ring-blue-500/30 shadow-sm dark:bg-navy-800"
-                          : "bg-white/70 dark:bg-navy-900/80"
-                      }`}
-                    >
-                      <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
-                        Total Points
-                      </p>
-                      <p className="mt-0.5 text-2xl font-black text-slate-900 dark:text-white">
-                        {item.totalPoints}
-                      </p>
-                      <p className="text-[11px] text-slate-400">
-                        {item.studentPoints} individual + {item.bonusPoints} bonus
-                      </p>
-                    </div>
-                  </div>
-
-                  <div className="mt-3.5 flex items-center justify-between border-t border-slate-200/70 pt-3 text-xs dark:border-slate-800">
-                    <span className="inline-flex items-center gap-1.5 font-semibold text-amber-700 dark:text-amber-400">
-                      <Flame className="h-4 w-4 fill-amber-500 text-amber-500" />
-                      Combo Streaks: {item.comboCount}x
+                      <Medal className="h-3.5 w-3.5" />#{item.rank}{" "}
+                      {idx === 0 ? "Leader" : idx === 1 ? "2nd Place" : "3rd Place"}
                     </span>
-                    <span className="font-medium text-slate-500 dark:text-slate-400">
-                      +{item.bonusPoints} bonus pts
+                    <span className="text-xs font-semibold text-slate-400">
+                      Solo Rank
                     </span>
                   </div>
+                  <p className="mt-3 text-xl font-black text-slate-900 dark:text-white">
+                    {item.student.name}
+                  </p>
+                  <div className="mt-3 flex items-baseline gap-2">
+                    <span className="text-3xl font-black text-slate-900 dark:text-white">
+                      {item.totalPoints}
+                    </span>
+                    <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">
+                      points
+                    </span>
+                  </div>
+                  <p className="mt-2 text-[11px] text-slate-500 dark:text-slate-400">
+                    Active ×{item.activeCount} • Star ×{item.starCount} • Ace ×
+                    {item.aceCount} • Duty ×{item.dutyCount}
+                  </p>
                 </div>
               );
             })}
           </div>
+
+          {/* Animated Top 8 Solo Students Bar Chart */}
+          <div className="mt-6">
+            <SoloRaceChart leaderboard={overallLeaderboard} maxBars={8} height={280} />
+          </div>
         </section>
 
-        {/* SECTION 2: WEEKLY AWARDS & AUTOMATIC CALCULATIONS */}
+        {/* SECTION 2: CLASS SCHEDULE */}
+        <section className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm sm:p-7 dark:border-slate-800 dark:bg-navy-900">
+          <ScheduleViewer
+            schedules={dataset.schedules}
+            sessionUser={sessionUser}
+            standalone={false}
+          />
+        </section>
+
+        {/* SECTION 3: WEEKLY SOLO HONORS & SUBJECT CHAMPIONS */}
         <section className="space-y-5">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <Award className="h-5 w-5 text-blue-600 dark:text-blue-400" />
-              <h2 className="text-xl font-extrabold tracking-tight text-slate-900 dark:text-white">
-                {selectedWeekId === "all" ? "All-Time Honors & Champions" : "Weekly Honors & Champions"}
-              </h2>
-            </div>
+          <div className="flex items-center gap-2">
+            <Award className="h-5 w-5 text-blue-600 dark:text-blue-400" />
+            <h2 className="text-xl font-extrabold tracking-tight text-slate-900 dark:text-white">
+              {selectedWeekId === "all"
+                ? "All-Time Solo Honors & Subject Champions"
+                : "Weekly Solo Honors & Subject Champions"}
+            </h2>
           </div>
 
-          {/* Primary 3 Major Honors Cards */}
           <div className="grid grid-cols-1 gap-5 md:grid-cols-3">
-            {/* 1. Overall MVP */}
+            {/* 1. Overall Solo MVP */}
             <div className="rounded-2xl border border-amber-200 bg-gradient-to-br from-amber-50 via-white to-white p-5 shadow-sm dark:border-amber-800/50 dark:from-amber-950/30 dark:via-navy-900 dark:to-navy-900">
               <div className="flex items-center justify-between">
                 <span className="inline-flex items-center gap-1.5 rounded-full bg-amber-100 px-3 py-1 text-xs font-bold text-amber-800 dark:bg-amber-900/60 dark:text-amber-300">
                   <Crown className="h-3.5 w-3.5" />
-                  Overall MVP
+                  Overall Solo MVP
                 </span>
                 <Star className="h-5 w-5 text-amber-500" />
               </div>
@@ -555,16 +448,7 @@ export function PublicDashboardClient({
                   <p className="text-2xl font-black text-slate-900 dark:text-white">
                     {mvp.student.name}
                   </p>
-                  <div className="mt-1.5 flex items-center gap-2">
-                    <span
-                      className="inline-block h-2.5 w-2.5 rounded-full"
-                      style={{ backgroundColor: mvp.team.color }}
-                    />
-                    <span className="text-xs font-semibold text-slate-600 dark:text-slate-300">
-                      {mvp.team.name}
-                    </span>
-                  </div>
-                  <div className="mt-4 flex items-baseline gap-2">
+                  <div className="mt-3 flex items-baseline gap-2">
                     <span className="text-3xl font-black text-amber-600 dark:text-amber-400">
                       {mvp.totalPoints}
                     </span>
@@ -579,60 +463,42 @@ export function PublicDashboardClient({
                     Awaiting first points
                   </p>
                   <p className="mt-1 text-xs">
-                    Once points are logged for this period, the top-scoring student appears here automatically.
+                    The highest-scoring student of the week is automatically crowned here.
                   </p>
                 </div>
               )}
             </div>
 
-            {/* 2. Winning Team */}
+            {/* 2. Most Active Participant */}
             <div className="rounded-2xl border border-blue-200 bg-gradient-to-br from-blue-50 via-white to-white p-5 shadow-sm dark:border-blue-800/50 dark:from-blue-950/30 dark:via-navy-900 dark:to-navy-900">
               <div className="flex items-center justify-between">
                 <span className="inline-flex items-center gap-1.5 rounded-full bg-blue-100 px-3 py-1 text-xs font-bold text-blue-800 dark:bg-blue-900/60 dark:text-blue-300">
                   <Trophy className="h-3.5 w-3.5" />
-                  Leading House ({fairnessMode === "average" ? "Fair Avg" : "Total"})
+                  Most Active Student
                 </span>
                 <Medal className="h-5 w-5 text-blue-500" />
               </div>
-              {winningTeam ? (
+              {topActiveStudent ? (
                 <div className="mt-4">
-                  <div className="flex items-center gap-2">
-                    <span
-                      className="inline-block h-3.5 w-3.5 rounded-full"
-                      style={{ backgroundColor: winningTeam.team.color }}
-                    />
-                    <p className="text-2xl font-black text-slate-900 dark:text-white">
-                      {winningTeam.team.name}
-                    </p>
-                  </div>
-                  <p className="mt-1 text-xs font-medium text-slate-500 dark:text-slate-400">
-                    {winningTeam.memberCount} active students • {winningTeam.comboCount} Combo Streaks
+                  <p className="text-2xl font-black text-slate-900 dark:text-white">
+                    {topActiveStudent.row.student.name}
                   </p>
-                  <div className="mt-4 flex flex-wrap items-baseline gap-3">
-                    <div>
-                      <span className="text-3xl font-black text-blue-600 dark:text-blue-400">
-                        {fairnessMode === "average"
-                          ? winningTeam.averagePoints.toFixed(2)
-                          : winningTeam.totalPoints}
-                      </span>
-                      <span className="ml-1 text-xs font-semibold text-slate-500 dark:text-slate-400">
-                        {fairnessMode === "average" ? "pts/student" : "total pts"}
-                      </span>
-                    </div>
-                    <span className="rounded-lg bg-slate-100 px-2 py-0.5 text-xs font-semibold text-slate-600 dark:bg-navy-800 dark:text-slate-300">
-                      {fairnessMode === "average"
-                        ? `${winningTeam.totalPoints} total pts`
-                        : `${winningTeam.averagePoints.toFixed(2)} avg/student`}
+                  <div className="mt-3 flex items-baseline gap-2">
+                    <span className="text-3xl font-black text-blue-600 dark:text-blue-400">
+                      {topActiveStudent.count}
+                    </span>
+                    <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">
+                      positive contributions logged
                     </span>
                   </div>
                 </div>
               ) : (
                 <div className="mt-5 text-sm text-slate-500 dark:text-slate-400">
                   <p className="font-semibold text-slate-700 dark:text-slate-300">
-                    Race ready to begin
+                    Ready for participation
                   </p>
                   <p className="mt-1 text-xs">
-                    All 3 houses start even. Points and +5 Team Combo Streaks update standings live.
+                    Recognizes the student with the highest number of positive class contributions.
                   </p>
                 </div>
               )}
@@ -654,24 +520,15 @@ export function PublicDashboardClient({
                     Baseline Week in Progress
                   </p>
                   <p className="mt-1 text-xs leading-relaxed">
-                    No previous week exists yet. Starting in <strong>Week 2</strong>, this award automatically highlights the student with the biggest score jump!
+                    Starting in <strong>Week 2</strong>, this honor automatically highlights the student with the biggest score jump!
                   </p>
                 </div>
-              ) : mostImproved.student && mostImproved.team ? (
+              ) : mostImproved.student ? (
                 <div className="mt-4">
                   <p className="text-2xl font-black text-slate-900 dark:text-white">
                     {mostImproved.student.name}
                   </p>
-                  <div className="mt-1.5 flex items-center gap-2">
-                    <span
-                      className="inline-block h-2.5 w-2.5 rounded-full"
-                      style={{ backgroundColor: mostImproved.team.color }}
-                    />
-                    <span className="text-xs font-semibold text-slate-600 dark:text-slate-300">
-                      {mostImproved.team.name}
-                    </span>
-                  </div>
-                  <div className="mt-4 flex items-baseline gap-2">
+                  <div className="mt-3 flex items-baseline gap-2">
                     <span className="text-3xl font-black text-emerald-600 dark:text-emerald-400">
                       +{mostImproved.delta} pts
                     </span>
@@ -687,14 +544,14 @@ export function PublicDashboardClient({
                     Comparing vs {mostImproved.previousWeekName}
                   </p>
                   <p className="mt-1 text-xs leading-relaxed">
-                    As students surpass their {mostImproved.previousWeekName} score, the biggest positive jump will be crowned here.
+                    As students surpass their {mostImproved.previousWeekName} total, the biggest positive jump will appear here.
                   </p>
                 </div>
               )}
             </div>
           </div>
 
-          {/* 4. Subject Champions Grid */}
+          {/* Subject Champions Grid */}
           <div>
             <h3 className="mb-3 flex items-center gap-2 text-sm font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
               <BookOpen className="h-4 w-4" />
@@ -723,22 +580,17 @@ export function PublicDashboardClient({
                   </div>
 
                   <div className="mt-3 border-t border-slate-100 pt-3 dark:border-slate-800">
-                    {champ.student && champ.team ? (
+                    {champ.student ? (
                       <div className="flex items-center justify-between gap-2">
                         <div>
                           <p className="text-sm font-extrabold text-slate-900 dark:text-white">
                             {champ.student.name}
                           </p>
-                          <div className="mt-0.5 flex items-center gap-1.5">
-                            <span
-                              className="inline-block h-2 w-2 rounded-full"
-                              style={{ backgroundColor: champ.team.color }}
-                            />
-                            <span className="text-[11px] text-slate-500 dark:text-slate-400">
-                              {champ.team.short_name}
-                              {champ.tiedCount > 1 ? ` (+${champ.tiedCount - 1} tied)` : ""}
-                            </span>
-                          </div>
+                          {champ.tiedCount > 1 && (
+                            <p className="text-[11px] text-slate-500">
+                              +{champ.tiedCount - 1} tied
+                            </p>
+                          )}
                         </div>
                         <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-500" />
                       </div>
@@ -754,27 +606,26 @@ export function PublicDashboardClient({
           </div>
         </section>
 
-        {/* SECTION 3: LEADERBOARD + RECENT ACTIVITY FEED */}
+        {/* SECTION 4: FULL SOLO LEADERBOARD + RECENT ACTIVITY FEED */}
         <div className="grid grid-cols-1 gap-8 lg:grid-cols-3">
-          {/* Full Class Leaderboard Table (2 columns on desktop) */}
+          {/* Solo Leaderboard Table */}
           <section className="lg:col-span-2 rounded-3xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6 dark:border-slate-800 dark:bg-navy-900">
             <div className="flex flex-col gap-4 border-b border-slate-100 pb-4 dark:border-slate-800">
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <div>
                   <h2 className="text-lg font-extrabold text-slate-900 dark:text-white">
-                    Full Class Leaderboard
+                    Full Class Solo Leaderboard
                   </h2>
                   <p className="text-xs text-slate-500 dark:text-slate-400">
-                    Filter by House Team or Subject to inspect individual contributions.
+                    Filter by subject or search any classmate.
                   </p>
                 </div>
                 <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-600 dark:bg-navy-800 dark:text-slate-300">
-                  Showing {filteredLeaderboard.length} students
+                  {filteredLeaderboard.length} students
                 </span>
               </div>
 
-              {/* Filters Row */}
-              <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-3">
+              <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
                 <div className="relative">
                   <Search className="pointer-events-none absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
                   <input
@@ -784,23 +635,6 @@ export function PublicDashboardClient({
                     placeholder="Search student..."
                     className="w-full rounded-xl border border-slate-200 bg-slate-50 py-2 pl-9 pr-3 text-xs font-medium text-slate-800 placeholder:text-slate-400 focus:border-blue-500 focus:outline-none dark:border-slate-700 dark:bg-navy-950 dark:text-slate-100"
                   />
-                </div>
-
-                <div className="relative">
-                  <Filter className="pointer-events-none absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
-                  <select
-                    aria-label="Filter by team"
-                    value={selectedTeamFilter}
-                    onChange={(e) => setSelectedTeamFilter(e.target.value)}
-                    className="w-full rounded-xl border border-slate-200 bg-slate-50 py-2 pl-9 pr-3 text-xs font-semibold text-slate-800 focus:border-blue-500 focus:outline-none dark:border-slate-700 dark:bg-navy-950 dark:text-slate-100"
-                  >
-                    <option value="all">All 3 Teams</option>
-                    {dataset.teams.map((t) => (
-                      <option key={t.id} value={t.id}>
-                        {t.short_name} — {t.name}
-                      </option>
-                    ))}
-                  </select>
                 </div>
 
                 <div className="relative">
@@ -822,14 +656,12 @@ export function PublicDashboardClient({
               </div>
             </div>
 
-            {/* Responsive Table */}
             <div className="mt-4 overflow-x-auto">
-              <table className="w-full min-w-[580px] text-left text-sm">
+              <table className="w-full min-w-[480px] text-left text-sm">
                 <thead>
                   <tr className="border-b border-slate-200 text-[11px] font-bold uppercase tracking-wider text-slate-400 dark:border-slate-800">
                     <th className="py-3 pr-3">Rank</th>
                     <th className="py-3 px-3">Student</th>
-                    <th className="py-3 px-3">Team</th>
                     <th className="py-3 px-3">Breakdown</th>
                     <th className="py-3 pl-3 text-right">Points</th>
                   </tr>
@@ -859,14 +691,6 @@ export function PublicDashboardClient({
                         </td>
                         <td className="py-3 px-3 font-bold text-slate-900 dark:text-white">
                           {row.student.name}
-                        </td>
-                        <td className="py-3 px-3">
-                          <span
-                            className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-semibold text-white"
-                            style={{ backgroundColor: row.team.color }}
-                          >
-                            {row.team.name}
-                          </span>
                         </td>
                         <td className="py-3 px-3">
                           <div className="flex flex-wrap gap-1.5 text-[11px] font-semibold">
@@ -900,7 +724,9 @@ export function PublicDashboardClient({
                               row.aceCount === 0 &&
                               row.dutyCount === 0 &&
                               row.fairPlayCount === 0 && (
-                                <span className="text-slate-400 dark:text-slate-500">—</span>
+                                <span className="text-slate-400 dark:text-slate-500">
+                                  —
+                                </span>
                               )}
                           </div>
                         </td>
@@ -915,7 +741,10 @@ export function PublicDashboardClient({
 
                   {filteredLeaderboard.length === 0 && (
                     <tr>
-                      <td colSpan={5} className="py-8 text-center text-sm text-slate-400">
+                      <td
+                        colSpan={4}
+                        className="py-8 text-center text-sm text-slate-400"
+                      >
                         No students match the current filter.
                       </td>
                     </tr>
@@ -932,7 +761,7 @@ export function PublicDashboardClient({
                 Recent Activity Feed
               </h2>
               <p className="text-xs text-slate-500 dark:text-slate-400">
-                100% transparent log of points &amp; Combo Streaks.
+                100% transparent log of solo points awarded.
               </p>
             </div>
 
@@ -949,53 +778,22 @@ export function PublicDashboardClient({
                 </div>
               ) : (
                 activityFeed.map((item) => {
-                  const isBonus = item.type === "bonus";
                   const isNegative = item.points < 0;
-
                   return (
                     <div
                       key={item.id}
-                      className={`rounded-2xl border p-3.5 transition ${
-                        isBonus
-                          ? "border-amber-300 bg-amber-50/70 dark:border-amber-700/60 dark:bg-amber-950/30"
-                          : "border-slate-100 bg-slate-50/70 dark:border-slate-800 dark:bg-navy-950/60"
-                      }`}
+                      className="rounded-2xl border border-slate-100 bg-slate-50/70 p-3.5 transition dark:border-slate-800 dark:bg-navy-950/60"
                     >
                       <div className="flex items-start justify-between gap-2">
                         <div className="min-w-0">
-                          {isBonus ? (
-                            <div className="flex items-center gap-1.5">
-                              <Flame className="h-4 w-4 shrink-0 text-amber-500" />
-                              <p className="truncate text-sm font-extrabold text-amber-900 dark:text-amber-200">
-                                {item.team.name} Combo!
-                              </p>
-                            </div>
-                          ) : (
-                            <div className="flex flex-wrap items-center gap-1.5">
-                              <span className="text-sm font-extrabold text-slate-900 dark:text-white">
-                                {item.studentName}
-                              </span>
-                              <span
-                                className="rounded px-1.5 py-0.5 text-[10px] font-bold text-white"
-                                style={{ backgroundColor: item.team.color }}
-                              >
-                                {item.team.short_name}
-                              </span>
-                            </div>
-                          )}
-
-                          <p className="mt-1 text-xs font-medium text-slate-600 dark:text-slate-300">
-                            {isBonus ? (
-                              item.reason
-                            ) : (
-                              <>
-                                <span className="font-semibold">{item.category}</span> •{" "}
-                                {item.subjectName}
-                              </>
-                            )}
+                          <span className="text-sm font-extrabold text-slate-900 dark:text-white">
+                            {item.studentName}
+                          </span>
+                          <p className="mt-0.5 text-xs font-medium text-slate-600 dark:text-slate-300">
+                            <span className="font-semibold">{item.category}</span> •{" "}
+                            {item.subjectName}
                           </p>
-
-                          {!isBonus && item.reason && (
+                          {item.reason && (
                             <p className="mt-1 rounded-lg bg-white/80 px-2 py-1 text-[11px] italic text-slate-600 dark:bg-navy-900 dark:text-slate-400">
                               Reason: &ldquo;{item.reason}&rdquo;
                             </p>
@@ -1004,9 +802,7 @@ export function PublicDashboardClient({
 
                         <span
                           className={`shrink-0 rounded-xl px-2.5 py-1 text-xs font-black ${
-                            isBonus
-                              ? "bg-amber-500 text-white"
-                              : isNegative
+                            isNegative
                               ? "bg-rose-100 text-rose-700 dark:bg-rose-950 dark:text-rose-300"
                               : "bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300"
                           }`}
@@ -1016,7 +812,7 @@ export function PublicDashboardClient({
                       </div>
 
                       <div className="mt-2 flex items-center justify-between text-[11px] text-slate-400">
-                        <span>Log Date: {formatShortDate(item.date)}</span>
+                        <span>Date: {formatShortDate(item.date)}</span>
                         <span>{formatTimestampRelative(item.createdAt)}</span>
                       </div>
                     </div>
@@ -1030,10 +826,10 @@ export function PublicDashboardClient({
 
       <footer className="mt-12 border-t border-slate-200 bg-white py-6 text-center text-xs text-slate-500 dark:border-slate-800 dark:bg-navy-900 dark:text-slate-400">
         <p className="font-semibold text-slate-700 dark:text-slate-300">
-          International GoldStars School • IB MYP 3 Activity Hub
+          International GoldStars School • IB MYP 3 Solo Activity Hub
         </p>
         <p className="mt-1">
-          Maintained by Class Leaders Yahyo &amp; Fazliya • Fair House Scoring &amp; Collaborative Excellence
+          Maintained by Class Leaders Yahyo &amp; Fazliya
         </p>
       </footer>
     </div>

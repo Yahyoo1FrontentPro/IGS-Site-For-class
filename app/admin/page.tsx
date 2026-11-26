@@ -11,7 +11,11 @@ import { AppUserSummary } from "@/types";
 
 export const dynamic = "force-dynamic";
 
-export default async function AdminPage() {
+export default async function AdminPage({
+  searchParams,
+}: {
+  searchParams?: { tab?: string };
+}) {
   const sessionUser = getSessionUser();
 
   if (!sessionUser || sessionUser.role !== "admin") {
@@ -34,12 +38,20 @@ export default async function AdminPage() {
     appUsers = readLocalStore().appUsers.map(toUserSummary);
   }
 
+  const initialTab =
+    searchParams?.tab === "schedules"
+      ? "schedules"
+      : searchParams?.tab === "manage"
+      ? "manage"
+      : "daily";
+
   const dataset = await fetchHubDataset();
   return (
     <AdminPanelClient
       initialDataset={dataset}
       currentUser={sessionUser}
       initialAppUsers={appUsers}
+      initialTab={initialTab}
     />
   );
 }
