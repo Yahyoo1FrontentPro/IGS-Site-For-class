@@ -1,4 +1,5 @@
 import { getSessionUser } from "@/lib/auth";
+import { fetchAllAbsences } from "@/lib/absences";
 import { getElectionState } from "@/lib/elections";
 import { readLocalStore, toUserSummary } from "@/lib/local-store";
 import {
@@ -27,11 +28,20 @@ export default async function AdminPage({
   if (isSupabaseAdminConfigured()) {
     try {
       const supabase = getSupabaseAdminClient();
-      const { data } = await supabase
+      const res = await supabase
         .from("app_users")
-        .select("id, username, phone, role, created_at")
+        .select("id, username, phone, role, role_title, created_at")
         .order("created_at", { ascending: true });
-      appUsers = (data ?? []) as AppUserSummary[];
+
+      if (!res.error && res.data) {
+        appUsers = res.data as AppUserSummary[];
+      } else {
+        const fallback = await supabase
+          .from("app_users")
+          .select("id, username, phone, role, created_at")
+          .order("created_at", { ascending: true });
+        appUsers = (fallback.data ?? []) as AppUserSummary[];
+      }
     } catch {
       appUsers = readLocalStore().appUsers.map(toUserSummary);
     }
@@ -44,14 +54,18 @@ export default async function AdminPage({
       ? "schedules"
       : searchParams?.tab === "voting"
       ? "voting"
+      : searchParams?.tab === "absences"
+      ? "absences"
       : searchParams?.tab === "manage"
       ? "manage"
       : "daily";
 
-  const [dataset, initialElection] = await Promise.all([
+  const [dataset, initialElection, initialAbsences] = await Promise.all([
     fetchHubDataset(),
     getElectionState(sessionUser),
+    fetchAllAbsences(),
   ]);
+
   return (
     <AdminPanelClient
       initialDataset={dataset}
@@ -59,6 +73,7 @@ export default async function AdminPage({
       initialAppUsers={appUsers}
       initialTab={initialTab}
       initialElection={initialElection}
+      initialAbsences={initialAbsences}
     />
   );
 }

@@ -25,6 +25,7 @@ CREATE TABLE public.app_users (
   phone_normalized TEXT UNIQUE,
   password_hash TEXT NOT NULL,
   role TEXT NOT NULL DEFAULT 'student' CHECK (role IN ('admin', 'student')),
+  role_title TEXT,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
@@ -116,6 +117,21 @@ CREATE TABLE public.leader_votes (
 );
 
 CREATE INDEX idx_leader_votes_election_id ON public.leader_votes(election_id);
+
+-- 8. STUDENT ABSENCE REPORTS TABLE
+CREATE TABLE public.absence_reports (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id TEXT NOT NULL,
+  username TEXT NOT NULL,
+  absence_date DATE NOT NULL,
+  reason TEXT NOT NULL,
+  status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'acknowledged')),
+  admin_note TEXT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX idx_absence_reports_date ON public.absence_reports(absence_date DESC, created_at DESC);
+CREATE INDEX idx_absence_reports_user_id ON public.absence_reports(user_id);
 
 -- ============================================================================
 -- TABLE & SCHEMA GRANTS FOR SUPABASE API ROLES

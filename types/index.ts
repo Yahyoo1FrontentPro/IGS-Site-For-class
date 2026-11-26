@@ -33,6 +33,7 @@ export interface SessionUser {
   username: string;
   phone: string | null;
   role: UserRole;
+  role_title?: string | null;
 }
 
 export interface AppUserSummary {
@@ -40,6 +41,20 @@ export interface AppUserSummary {
   username: string;
   phone: string | null;
   role: UserRole;
+  role_title?: string | null;
+  created_at: string;
+}
+
+export type AbsenceStatus = "pending" | "acknowledged";
+
+export interface AbsenceReport {
+  id: string;
+  user_id: string;
+  username: string;
+  absence_date: string;
+  reason: string;
+  status: AbsenceStatus;
+  admin_note: string | null;
   created_at: string;
 }
 

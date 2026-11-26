@@ -9,6 +9,7 @@ import {
   BookOpen,
   Calendar,
   CalendarDays,
+  CalendarX2,
   Check,
   CheckCircle2,
   Edit3,
@@ -18,13 +19,11 @@ import {
   KeyRound,
   Loader2,
   LogOut,
-  Phone,
   Plus,
   RotateCcw,
   Search,
   Settings,
   ShieldAlert,
-  ShieldCheck,
   Trash2,
   Undo2,
   UserPlus,
@@ -34,6 +33,7 @@ import {
   Zap,
 } from "lucide-react";
 import {
+  AbsenceReport,
   AppUserSummary,
   ClassSchedule,
   DayOfWeek,
@@ -50,8 +50,10 @@ import {
 import { DAYS_OF_WEEK, formatShortDate, getTodayDateISO } from "@/lib/calculations";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { AdminElectionPanel } from "@/components/AdminElectionPanel";
+import { AdminAbsencesPanel } from "@/components/AdminAbsencesPanel";
+import { AdminRolesPanel } from "@/components/AdminRolesPanel";
 
-type AdminTab = "daily" | "schedules" | "voting" | "manage";
+type AdminTab = "daily" | "schedules" | "voting" | "absences" | "manage";
 
 interface AdminPanelClientProps {
   initialDataset: HubDataset;
@@ -59,6 +61,7 @@ interface AdminPanelClientProps {
   initialAppUsers?: AppUserSummary[];
   initialTab?: AdminTab;
   initialElection: ElectionState;
+  initialAbsences?: AbsenceReport[];
 }
 
 interface ToastMessage {
@@ -125,10 +128,16 @@ export function AdminPanelClient({
   initialAppUsers = [],
   initialTab = "daily",
   initialElection,
+  initialAbsences = [],
 }: AdminPanelClientProps) {
   const router = useRouter();
 
   const [appUsers, setAppUsers] = useState<AppUserSummary[]>(initialAppUsers);
+  const [absences, setAbsences] = useState<AbsenceReport[]>(initialAbsences);
+  const pendingAbsencesCount = useMemo(
+    () => absences.filter((a) => a.status === "pending").length,
+    [absences]
+  );
   const [myPhoneInput, setMyPhoneInput] = useState<string>(
     currentUser.phone ?? ""
   );
@@ -565,34 +574,6 @@ export function AdminPanelClient({
     }
   };
 
-  const handleToggleUserRole = async (target: AppUserSummary) => {
-    const nextRole = target.role === "admin" ? "student" : "admin";
-    const res = await fetch("/api/admin/users", {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ userId: target.id, role: nextRole }),
-    });
-    const data = (await res.json()) as {
-      user?: AppUserSummary;
-      error?: string;
-    };
-    if (!res.ok || !data.user) {
-      pushToast({
-        title: "Could not change role",
-        subtitle: data.error,
-        variant: "error",
-      });
-      return;
-    }
-    setAppUsers((prev) =>
-      prev.map((u) => (u.id === data.user!.id ? data.user! : u))
-    );
-    pushToast({
-      title: `@${data.user.username} is now ${data.user.role.toUpperCase()}`,
-      variant: "success",
-    });
-  };
-
   const handleResetStudentPassword = async (target: AppUserSummary) => {
     const res = await fetch("/api/admin/users", {
       method: "PATCH",
@@ -858,7 +839,8 @@ export function AdminPanelClient({
                 MYP 3 Solo Leader Console
               </h1>
               <p className="text-xs text-slate-500 dark:text-slate-400">
-                Signed in as <strong>@{currentUser.username}</strong> •{" "}
+                Signed in as <strong>@{currentUser.username}</strong>
+                {currentUser.role_title ? ` (${currentUser.role_title})` : ""} •{" "}
                 {activeWeek ? `Active: ${activeWeek.name}` : "No active week"}
               </p>
             </div>
@@ -902,6 +884,23 @@ export function AdminPanelClient({
               >
                 <Vote className="h-3.5 w-3.5" />
                 Voting
+              </button>
+              <button
+                type="button"
+                onClick={() => setActiveTab("absences")}
+                className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-bold transition sm:text-sm ${
+                  activeTab === "absences"
+                    ? "bg-white text-navy-900 shadow-sm dark:bg-blue-600 dark:text-white"
+                    : "text-slate-600 hover:text-slate-900 dark:text-slate-400"
+                }`}
+              >
+                <CalendarX2 className="h-3.5 w-3.5" />
+                Absences
+                {pendingAbsencesCount > 0 && (
+                  <span className="rounded-full bg-rose-600 px-1.5 py-0.2 text-[10px] font-extrabold text-white">
+                    {pendingAbsencesCount}
+                  </span>
+                )}
               </button>
               <button
                 type="button"
@@ -1397,6 +1396,15 @@ export function AdminPanelClient({
           <AdminElectionPanel initialState={initialElection} />
         )}
 
+        {/* TAB: STUDENT ABSENCES */}
+        {activeTab === "absences" && (
+          <AdminAbsencesPanel
+            absences={absences}
+            onAbsencesChange={setAbsences}
+            onNotify={pushToast}
+          />
+        )}
+
         {/* TAB 3: MANAGEMENT */}
         {activeTab === "manage" && (
           <div className="space-y-8">
@@ -1709,109 +1717,18 @@ export function AdminPanelClient({
               </div>
             </section>
 
-            {/* 4. Registered Accounts & Admins */}
-            <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-navy-900">
-              <div className="flex flex-col gap-4 border-b border-slate-100 pb-4 sm:flex-row sm:items-center sm:justify-between dark:border-slate-800">
-                <div className="flex items-center gap-2">
-                  <ShieldCheck className="h-5 w-5 text-blue-600 dark:text-blue-400" />
-                  <div>
-                    <h2 className="text-lg font-extrabold text-slate-900 dark:text-white">
-                      Registered Accounts &amp; Admins
-                    </h2>
-                    <p className="text-xs text-slate-500 dark:text-slate-400">
-                      Default student password is 12345678. Reset forgotten passwords or promote co-admins.
-                    </p>
-                  </div>
-                </div>
-
-                <form
-                  onSubmit={handleSaveMyPhone}
-                  className="flex flex-wrap items-center gap-2"
-                >
-                  <div className="relative">
-                    <Phone className="pointer-events-none absolute left-3 top-2.5 h-3.5 w-3.5 text-slate-400" />
-                    <input
-                      type="tel"
-                      value={myPhoneInput}
-                      onChange={(e) => setMyPhoneInput(e.target.value)}
-                      placeholder="Your phone (+998...)"
-                      className="rounded-xl border border-slate-200 bg-slate-50 py-2 pl-8 pr-3 text-xs font-medium dark:border-slate-700 dark:bg-navy-950 dark:text-white"
-                    />
-                  </div>
-                  <button
-                    type="submit"
-                    disabled={savingPhone}
-                    className="rounded-xl bg-navy-800 px-3.5 py-2 text-xs font-bold text-white hover:bg-navy-700 disabled:opacity-50 dark:bg-blue-600 dark:hover:bg-blue-500"
-                  >
-                    {savingPhone ? "Saving..." : "Save My Phone"}
-                  </button>
-                </form>
-              </div>
-
-              <div className="mt-4 overflow-x-auto">
-                <table className="w-full min-w-[520px] text-left text-xs">
-                  <thead>
-                    <tr className="border-b border-slate-200 font-bold uppercase tracking-wider text-slate-400 dark:border-slate-800">
-                      <th className="py-2.5 pr-3">Username</th>
-                      <th className="py-2.5 px-3">Phone Number</th>
-                      <th className="py-2.5 px-3">Role</th>
-                      <th className="py-2.5 pl-3 text-right">Action</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                    {appUsers.map((u) => (
-                      <tr key={u.id}>
-                        <td className="py-2.5 pr-3 font-bold text-slate-900 dark:text-white">
-                          @{u.username}
-                        </td>
-                        <td className="py-2.5 px-3 text-slate-600 dark:text-slate-300">
-                          {u.phone ?? "Not set yet"}
-                        </td>
-                        <td className="py-2.5 px-3">
-                          <span
-                            className={`rounded-full px-2.5 py-0.5 text-[11px] font-bold ${
-                              u.role === "admin"
-                                ? "bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300"
-                                : "bg-slate-100 text-slate-700 dark:bg-navy-800 dark:text-slate-300"
-                            }`}
-                          >
-                            {u.role === "admin" ? "Admin" : "Student"}
-                          </span>
-                        </td>
-                        <td className="py-2.5 pl-3 text-right">
-                          {u.username.toLowerCase() === "yahyoo_erikovich" ? (
-                            <span className="text-[11px] font-semibold text-slate-400">
-                              Primary Owner
-                            </span>
-                          ) : (
-                            <div className="inline-flex items-center gap-1.5">
-                              <button
-                                type="button"
-                                onClick={() => handleResetStudentPassword(u)}
-                                title="Reset student password back to 12345678"
-                                className="inline-flex items-center gap-1 rounded-lg border border-slate-200 px-2 py-1 text-[11px] font-semibold text-slate-600 hover:bg-slate-100 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-navy-800"
-                              >
-                                <RotateCcw className="h-3 w-3" />
-                                Reset PW
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => handleToggleUserRole(u)}
-                                className="rounded-lg border border-slate-200 px-2.5 py-1 text-[11px] font-bold text-slate-700 hover:bg-slate-100 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-navy-800"
-                              >
-                                {u.role === "admin"
-                                  ? "Make Student"
-                                  : "Make Admin"}
-                              </button>
-                            </div>
-                          )}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </section>
+            {/* 4. Role Assignment, Co-Admins & Registered Accounts */}
+            <AdminRolesPanel
+              currentUser={currentUser}
+              appUsers={appUsers}
+              onUsersChange={setAppUsers}
+              myPhoneInput={myPhoneInput}
+              onMyPhoneInputChange={setMyPhoneInput}
+              savingPhone={savingPhone}
+              onSaveMyPhone={handleSaveMyPhone}
+              onResetPassword={handleResetStudentPassword}
+              onNotify={pushToast}
+            />
 
             {/* 5. Clear Data (Reset Scores to 0) */}
             <section className="rounded-3xl border border-rose-200 bg-rose-50/40 p-6 shadow-sm dark:border-rose-900/50 dark:bg-rose-950/20">

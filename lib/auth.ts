@@ -40,6 +40,7 @@ export function createSessionCookieValue(user: SessionUser): string {
     username: user.username,
     phone: user.phone,
     role: user.role,
+    role_title: user.role_title ?? null,
     exp: Date.now() + 1000 * 60 * 60 * 24 * 14, // 14 days
   });
   const payloadB64 = Buffer.from(payload, "utf8").toString("base64url");
@@ -83,6 +84,7 @@ export function getSessionUser(): SessionUser | null {
       username: parsed.username,
       phone: parsed.phone ?? null,
       role: parsed.role,
+      role_title: parsed.role_title ?? null,
     };
   } catch {
     return null;

@@ -3,6 +3,7 @@ import os from "os";
 import path from "path";
 import crypto from "crypto";
 import {
+  AbsenceReport,
   AppUserSummary,
   ClassSchedule,
   HubDataset,
@@ -29,6 +30,7 @@ export interface StoredAppUser {
   phone_normalized: string | null;
   password_hash: string;
   role: UserRole;
+  role_title?: string | null;
   created_at: string;
 }
 
@@ -41,6 +43,7 @@ export interface LocalStoreData {
   schedules: ClassSchedule[];
   elections: LeaderElection[];
   votes: LeaderVote[];
+  absences: AbsenceReport[];
 }
 
 const STORE_FILE_PATH = path.join(
@@ -62,6 +65,7 @@ function createInitialStore(): LocalStoreData {
         phone_normalized: null,
         password_hash: BUILTIN_ADMIN_PASSWORD_HASH,
         role: "admin",
+        role_title: "Class Leader",
         created_at: nowIso,
       },
       ...seed.students.map((st, idx) => ({
@@ -72,6 +76,7 @@ function createInitialStore(): LocalStoreData {
         phone_normalized: null,
         password_hash: DEFAULT_STUDENT_PASSWORD_HASH,
         role: "student" as const,
+        role_title: null,
         created_at: nowIso,
       })),
     ],
@@ -82,6 +87,7 @@ function createInitialStore(): LocalStoreData {
     schedules: [],
     elections: [],
     votes: [],
+    absences: [],
   };
 }
 
@@ -107,6 +113,9 @@ export function readLocalStore(): LocalStoreData {
     }
     if (!Array.isArray(parsed.votes)) {
       parsed.votes = [];
+    }
+    if (!Array.isArray(parsed.absences)) {
+      parsed.absences = [];
     }
     return parsed;
   } catch {
@@ -148,6 +157,7 @@ export function toUserSummary(u: StoredAppUser): AppUserSummary {
     username: u.username,
     phone: u.phone,
     role: u.role,
+    role_title: u.role_title ?? null,
     created_at: u.created_at,
   };
 }

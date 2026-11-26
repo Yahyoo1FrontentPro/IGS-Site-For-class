@@ -36,21 +36,26 @@ export async function POST(req: NextRequest) {
     if (isSupabaseAdminConfigured()) {
       const supabase = getSupabaseAdminClient();
 
-      const { data: byUsername } = await supabase
-        .from("app_users")
-        .select("id, username, phone, password_hash, role")
-        .eq("username_lower", lowerId)
-        .maybeSingle();
-
-      let matchedUser = byUsername;
-
-      if (!matchedUser && digitsOnly.length >= 7) {
-        const { data: byPhone } = await supabase
+      const fetchUserBy = async (column: "username_lower" | "phone_normalized", value: string) => {
+        const res = await supabase
+          .from("app_users")
+          .select("id, username, phone, password_hash, role, role_title")
+          .eq(column, value)
+          .maybeSingle();
+        if (!res.error) return res.data as Record<string, unknown> | null;
+        // Fallback if role_title column has not been migrated yet
+        const fallback = await supabase
           .from("app_users")
           .select("id, username, phone, password_hash, role")
-          .eq("phone_normalized", digitsOnly)
+          .eq(column, value)
           .maybeSingle();
-        matchedUser = byPhone;
+        return fallback.data as Record<string, unknown> | null;
+      };
+
+      let matchedUser = await fetchUserBy("username_lower", lowerId);
+
+      if (!matchedUser && digitsOnly.length >= 7) {
+        matchedUser = await fetchUserBy("phone_normalized", digitsOnly);
       }
 
       if (matchedUser) {
@@ -67,6 +72,10 @@ export async function POST(req: NextRequest) {
           username: matchedUser.username as string,
           phone: (matchedUser.phone as string | null) ?? null,
           role: (matchedUser.role as "admin" | "student") ?? "student",
+          role_title:
+            typeof matchedUser.role_title === "string"
+              ? matchedUser.role_title
+              : null,
         };
 
         const response = NextResponse.json({ user: sessionUser });
@@ -184,6 +193,7 @@ export async function POST(req: NextRequest) {
       username: localMatch.username,
       phone: localMatch.phone,
       role: localMatch.role,
+      role_title: localMatch.role_title ?? null,
     };
 
     const response = NextResponse.json({ user: sessionUser });
