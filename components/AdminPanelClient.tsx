@@ -6,12 +6,14 @@ import { useRouter } from "next/navigation";
 import {
   AlertCircle,
   ArrowLeft,
+  BookMarked,
   BookOpen,
   Calendar,
   CalendarDays,
   CalendarX2,
   Check,
   CheckCircle2,
+  ClipboardCheck,
   Edit3,
   Eye,
   EyeOff,
@@ -38,9 +40,12 @@ import {
   ClassSchedule,
   DayOfWeek,
   ElectionState,
+  HomeworkAssignment,
   HubDataset,
+  LessonIncident,
   PointCategory,
   PointLog,
+  RollCallEntry,
   ScheduleLesson,
   SessionUser,
   Student,
@@ -49,12 +54,23 @@ import {
 } from "@/types";
 import { DAYS_OF_WEEK, formatShortDate, getTodayDateISO } from "@/lib/calculations";
 import { ThemeToggle } from "@/components/ThemeToggle";
+import { LanguageToggle } from "@/components/LanguageToggle";
+import { useLanguage } from "@/components/LanguageProvider";
 import { AdminElectionPanel } from "@/components/AdminElectionPanel";
 import { AdminAbsencesPanel } from "@/components/AdminAbsencesPanel";
 import { AdminRolesPanel } from "@/components/AdminRolesPanel";
+import { AdminHomeworkPanel } from "@/components/AdminHomeworkPanel";
+import { AdminRollCallAndLogsPanel } from "@/components/AdminRollCallAndLogsPanel";
 import { useHideOnMobileScroll } from "@/lib/useHideOnMobileScroll";
 
-type AdminTab = "daily" | "schedules" | "voting" | "absences" | "manage";
+type AdminTab =
+  | "daily"
+  | "homework"
+  | "rollcall"
+  | "schedules"
+  | "voting"
+  | "absences"
+  | "manage";
 
 interface AdminPanelClientProps {
   initialDataset: HubDataset;
@@ -63,6 +79,9 @@ interface AdminPanelClientProps {
   initialTab?: AdminTab;
   initialElection: ElectionState;
   initialAbsences?: AbsenceReport[];
+  initialHomework?: HomeworkAssignment[];
+  initialRollCalls?: RollCallEntry[];
+  initialIncidents?: LessonIncident[];
 }
 
 interface ToastMessage {
@@ -130,12 +149,22 @@ export function AdminPanelClient({
   initialTab = "daily",
   initialElection,
   initialAbsences = [],
+  initialHomework = [],
+  initialRollCalls = [],
+  initialIncidents = [],
 }: AdminPanelClientProps) {
   const router = useRouter();
+  const { t } = useLanguage();
   const hideHeaderOnMobile = useHideOnMobileScroll();
 
   const [appUsers, setAppUsers] = useState<AppUserSummary[]>(initialAppUsers);
   const [absences, setAbsences] = useState<AbsenceReport[]>(initialAbsences);
+  const [homework, setHomework] =
+    useState<HomeworkAssignment[]>(initialHomework);
+  const [rollCalls, setRollCalls] =
+    useState<RollCallEntry[]>(initialRollCalls);
+  const [incidents, setIncidents] =
+    useState<LessonIncident[]>(initialIncidents);
   const pendingAbsencesCount = useMemo(
     () => absences.filter((a) => a.status === "pending").length,
     [absences]
@@ -838,11 +867,11 @@ export function AdminPanelClient({
               className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-100 dark:border-slate-700 dark:bg-navy-800 dark:text-slate-200"
             >
               <ArrowLeft className="h-4 w-4" />
-              Public Hub
+              {t.navPublicHub}
             </Link>
             <div>
               <h1 className="text-base font-extrabold text-slate-900 sm:text-lg dark:text-white">
-                MYP 3 Solo Leader Console
+                {t.adminTitle}
               </h1>
               <p className="text-xs text-slate-500 dark:text-slate-400">
                 Signed in as <strong>@{currentUser.username}</strong>
@@ -853,55 +882,78 @@ export function AdminPanelClient({
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
-            {/* 3 Admin Tabs: Daily Input | Schedules | Management */}
-            <div className="inline-flex rounded-xl border border-slate-200 bg-slate-100 p-1 dark:border-slate-700 dark:bg-navy-950">
+            <div className="inline-flex flex-wrap rounded-xl border border-slate-200 bg-slate-100 p-1 dark:border-slate-700 dark:bg-navy-950">
               <button
                 type="button"
                 onClick={() => setActiveTab("daily")}
-                className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-bold transition sm:text-sm ${
+                className={`inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-bold transition ${
                   activeTab === "daily"
                     ? "bg-white text-navy-900 shadow-sm dark:bg-blue-600 dark:text-white"
                     : "text-slate-600 hover:text-slate-900 dark:text-slate-400"
                 }`}
               >
                 <Zap className="h-3.5 w-3.5" />
-                Daily Input
+                {t.adminTabDaily}
+              </button>
+              <button
+                type="button"
+                onClick={() => setActiveTab("homework")}
+                className={`inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-bold transition ${
+                  activeTab === "homework"
+                    ? "bg-white text-navy-900 shadow-sm dark:bg-blue-600 dark:text-white"
+                    : "text-slate-600 hover:text-slate-900 dark:text-slate-400"
+                }`}
+              >
+                <BookMarked className="h-3.5 w-3.5" />
+                {t.adminTabHomework}
+              </button>
+              <button
+                type="button"
+                onClick={() => setActiveTab("rollcall")}
+                className={`inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-bold transition ${
+                  activeTab === "rollcall"
+                    ? "bg-white text-navy-900 shadow-sm dark:bg-blue-600 dark:text-white"
+                    : "text-slate-600 hover:text-slate-900 dark:text-slate-400"
+                }`}
+              >
+                <ClipboardCheck className="h-3.5 w-3.5" />
+                {t.adminTabRollCall}
               </button>
               <button
                 type="button"
                 onClick={() => setActiveTab("schedules")}
-                className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-bold transition sm:text-sm ${
+                className={`inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-bold transition ${
                   activeTab === "schedules"
                     ? "bg-white text-navy-900 shadow-sm dark:bg-blue-600 dark:text-white"
                     : "text-slate-600 hover:text-slate-900 dark:text-slate-400"
                 }`}
               >
                 <CalendarDays className="h-3.5 w-3.5" />
-                Schedules
+                {t.adminTabSchedules}
               </button>
               <button
                 type="button"
                 onClick={() => setActiveTab("voting")}
-                className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-bold transition sm:text-sm ${
+                className={`inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-bold transition ${
                   activeTab === "voting"
                     ? "bg-white text-navy-900 shadow-sm dark:bg-blue-600 dark:text-white"
                     : "text-slate-600 hover:text-slate-900 dark:text-slate-400"
                 }`}
               >
                 <Vote className="h-3.5 w-3.5" />
-                Voting
+                {t.adminTabVoting}
               </button>
               <button
                 type="button"
                 onClick={() => setActiveTab("absences")}
-                className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-bold transition sm:text-sm ${
+                className={`inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-bold transition ${
                   activeTab === "absences"
                     ? "bg-white text-navy-900 shadow-sm dark:bg-blue-600 dark:text-white"
                     : "text-slate-600 hover:text-slate-900 dark:text-slate-400"
                 }`}
               >
                 <CalendarX2 className="h-3.5 w-3.5" />
-                Absences
+                {t.adminTabAbsences}
                 {pendingAbsencesCount > 0 && (
                   <span className="rounded-full bg-rose-600 px-1.5 py-0.2 text-[10px] font-extrabold text-white">
                     {pendingAbsencesCount}
@@ -911,17 +963,18 @@ export function AdminPanelClient({
               <button
                 type="button"
                 onClick={() => setActiveTab("manage")}
-                className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-bold transition sm:text-sm ${
+                className={`inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-bold transition ${
                   activeTab === "manage"
                     ? "bg-white text-navy-900 shadow-sm dark:bg-blue-600 dark:text-white"
                     : "text-slate-600 hover:text-slate-900 dark:text-slate-400"
                 }`}
               >
                 <Settings className="h-3.5 w-3.5" />
-                Management
+                {t.adminTabManage}
               </button>
             </div>
 
+            <LanguageToggle />
             <ThemeToggle />
 
             <Link
@@ -930,7 +983,7 @@ export function AdminPanelClient({
               className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-700 transition hover:bg-slate-100 dark:border-slate-700 dark:bg-navy-800 dark:text-slate-200"
             >
               <KeyRound className="h-3.5 w-3.5" />
-              <span className="hidden sm:inline">Password</span>
+              <span className="hidden sm:inline">{t.navPassword}</span>
             </Link>
 
             <button
@@ -940,7 +993,7 @@ export function AdminPanelClient({
               className="inline-flex items-center gap-1.5 rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-bold text-rose-700 transition hover:bg-rose-100 dark:border-rose-900/60 dark:bg-rose-950/50 dark:text-rose-300"
             >
               <LogOut className="h-4 w-4" />
-              <span className="hidden sm:inline">Logout</span>
+              <span className="hidden sm:inline">{t.navLogout}</span>
             </button>
           </div>
         </div>
@@ -1395,6 +1448,30 @@ export function AdminPanelClient({
               </div>
             </section>
           </div>
+        )}
+
+        {/* TAB: HOMEWORK ASSIGNMENTS */}
+        {activeTab === "homework" && (
+          <AdminHomeworkPanel
+            homework={homework}
+            subjects={subjects}
+            onHomeworkChange={setHomework}
+            onNotify={pushToast}
+          />
+        )}
+
+        {/* TAB: ROLL-CALL & TEACHER/CLASS LOGS */}
+        {activeTab === "rollcall" && (
+          <AdminRollCallAndLogsPanel
+            students={students}
+            subjects={subjects}
+            absences={absences}
+            rollCalls={rollCalls}
+            onRollCallsChange={setRollCalls}
+            incidents={incidents}
+            onIncidentsChange={setIncidents}
+            onNotify={pushToast}
+          />
         )}
 
         {/* TAB: CLASS LEADER VOTING */}

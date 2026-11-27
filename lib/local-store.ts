@@ -6,10 +6,13 @@ import {
   AbsenceReport,
   AppUserSummary,
   ClassSchedule,
+  HomeworkAssignment,
   HubDataset,
   LeaderElection,
   LeaderVote,
+  LessonIncident,
   PointLog,
+  RollCallEntry,
   Student,
   Subject,
   UserRole,
@@ -44,6 +47,9 @@ export interface LocalStoreData {
   elections: LeaderElection[];
   votes: LeaderVote[];
   absences: AbsenceReport[];
+  rollCalls: RollCallEntry[];
+  lessonIncidents: LessonIncident[];
+  homeworkAssignments: HomeworkAssignment[];
 }
 
 const STORE_FILE_PATH = path.join(
@@ -88,6 +94,9 @@ function createInitialStore(): LocalStoreData {
     elections: [],
     votes: [],
     absences: [],
+    rollCalls: [],
+    lessonIncidents: [],
+    homeworkAssignments: [],
   };
 }
 
@@ -116,6 +125,15 @@ export function readLocalStore(): LocalStoreData {
     }
     if (!Array.isArray(parsed.absences)) {
       parsed.absences = [];
+    }
+    if (!Array.isArray(parsed.rollCalls)) {
+      parsed.rollCalls = [];
+    }
+    if (!Array.isArray(parsed.lessonIncidents)) {
+      parsed.lessonIncidents = [];
+    }
+    if (!Array.isArray(parsed.homeworkAssignments)) {
+      parsed.homeworkAssignments = [];
     }
     return parsed;
   } catch {

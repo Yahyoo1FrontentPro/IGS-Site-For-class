@@ -23,6 +23,8 @@ import {
   getTodayDateISO,
 } from "@/lib/calculations";
 import { ThemeToggle } from "@/components/ThemeToggle";
+import { LanguageToggle } from "@/components/LanguageToggle";
+import { useLanguage } from "@/components/LanguageProvider";
 import { useHideOnMobileScroll } from "@/lib/useHideOnMobileScroll";
 
 interface AbsencePageClientProps {
@@ -52,6 +54,7 @@ export function AbsencePageClient({
   initialAbsences,
 }: AbsencePageClientProps) {
   const router = useRouter();
+  const { t } = useLanguage();
   const hideHeaderOnMobile = useHideOnMobileScroll();
   const todayIso = getTodayDateISO();
   const tomorrowIso = getTomorrowDateISO();
@@ -121,14 +124,14 @@ export function AbsencePageClient({
               className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-100 dark:border-slate-700 dark:bg-navy-800 dark:text-slate-200"
             >
               <ArrowLeft className="h-4 w-4" />
-              Back to Hub
+              {t.navBackToHub}
             </Link>
             <div>
               <h1 className="text-sm font-extrabold text-slate-900 sm:text-base dark:text-white">
-                Report School Absence
+                {t.absenceHeaderTitle}
               </h1>
               <p className="text-[11px] text-slate-500 dark:text-slate-400">
-                Notify MYP 3 Class Leaders when you cannot attend school
+                {t.absenceHeaderSubtitle}
               </p>
             </div>
           </div>
@@ -162,6 +165,7 @@ export function AbsencePageClient({
                 Log In
               </Link>
             )}
+            <LanguageToggle />
             <ThemeToggle />
           </div>
         </div>

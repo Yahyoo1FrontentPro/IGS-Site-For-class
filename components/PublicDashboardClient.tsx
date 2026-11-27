@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
   Award,
+  BookMarked,
   BookOpen,
   BookOpenCheck,
   Calendar,
@@ -45,6 +46,8 @@ import { WEEKLY_PRIZES, getPrizeForPlace } from "@/lib/prizes";
 import { ScheduleViewer } from "@/components/ScheduleViewer";
 import { LeaderElectionCard } from "@/components/LeaderElectionCard";
 import { ThemeToggle } from "@/components/ThemeToggle";
+import { LanguageToggle } from "@/components/LanguageToggle";
+import { useLanguage } from "@/components/LanguageProvider";
 import { useHideOnMobileScroll } from "@/lib/useHideOnMobileScroll";
 
 interface PublicDashboardClientProps {
@@ -60,6 +63,7 @@ export function PublicDashboardClient({
 }: PublicDashboardClientProps) {
   const router = useRouter();
   const [isRefreshing, startTransition] = useTransition();
+  const { t } = useLanguage();
   const hideHeaderOnMobile = useHideOnMobileScroll();
 
   const activeWeek = useMemo(
@@ -199,14 +203,14 @@ export function PublicDashboardClient({
             <div>
               <div className="flex flex-wrap items-center gap-2">
                 <h1 className="text-base font-extrabold tracking-tight text-slate-900 sm:text-lg dark:text-white">
-                  International GoldStars School • MYP 3 Activity Hub
+                  {t.siteTitle}
                 </h1>
                 <span className="hidden rounded-full bg-amber-100 px-2.5 py-0.5 text-[11px] font-bold text-amber-800 sm:inline-flex dark:bg-amber-950/70 dark:text-amber-300">
-                  Leaders: Yahyo &amp; Fazliya
+                  {t.leadersBadge}
                 </span>
               </div>
               <p className="text-xs text-slate-500 dark:text-slate-400">
-                IB Middle Years Programme • Individual Solo Standings, Class Schedule &amp; Weekly Honors
+                {t.siteSubtitle}
               </p>
             </div>
           </div>
@@ -224,10 +228,10 @@ export function PublicDashboardClient({
                 {dataset.weeks.map((week) => (
                   <option key={week.id} value={week.id}>
                     {week.name}
-                    {week.is_active ? " (Active)" : ""}
+                    {week.is_active ? ` ${t.activeSuffix}` : ""}
                   </option>
                 ))}
-                <option value="all">All-Time Cumulative</option>
+                <option value="all">{t.allTimeCumulative}</option>
               </select>
             </div>
 
@@ -252,7 +256,9 @@ export function PublicDashboardClient({
               }`}
             >
               <Vote className="h-4 w-4 text-indigo-600 dark:text-indigo-400" />
-              <span>Vote{electionState.openElection ? " (OPEN)" : ""}</span>
+              <span>
+                {electionState.openElection ? t.navVoteOpen : t.navVote}
+              </span>
             </Link>
 
             <Link
@@ -260,7 +266,15 @@ export function PublicDashboardClient({
               className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 shadow-sm transition hover:bg-slate-100 sm:text-sm dark:border-slate-700 dark:bg-navy-800 dark:text-slate-200 dark:hover:bg-navy-700"
             >
               <CalendarDays className="h-4 w-4 text-blue-600 dark:text-blue-400" />
-              <span>Schedule</span>
+              <span>{t.navSchedule}</span>
+            </Link>
+
+            <Link
+              href="/homework"
+              className="inline-flex items-center gap-1.5 rounded-xl border border-indigo-200 bg-indigo-50 px-3 py-2 text-xs font-semibold text-indigo-800 shadow-sm transition hover:bg-indigo-100 sm:text-sm dark:border-indigo-900/60 dark:bg-indigo-950/50 dark:text-indigo-300 dark:hover:bg-indigo-950"
+            >
+              <BookMarked className="h-4 w-4" />
+              <span>{t.navHomework}</span>
             </Link>
 
             <Link
@@ -268,7 +282,7 @@ export function PublicDashboardClient({
               className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 shadow-sm transition hover:bg-slate-100 sm:text-sm dark:border-slate-700 dark:bg-navy-800 dark:text-slate-200 dark:hover:bg-navy-700"
             >
               <BookOpenCheck className="h-4 w-4 text-amber-600 dark:text-amber-400" />
-              <span>Rules &amp; Duty</span>
+              <span>{t.navRulesDuty}</span>
             </Link>
 
             <Link
@@ -276,7 +290,7 @@ export function PublicDashboardClient({
               className="inline-flex items-center gap-1.5 rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-semibold text-rose-700 shadow-sm transition hover:bg-rose-100 sm:text-sm dark:border-rose-900/60 dark:bg-rose-950/50 dark:text-rose-300 dark:hover:bg-rose-950"
             >
               <CalendarX2 className="h-4 w-4" />
-              <span>Report Absence</span>
+              <span>{t.navReportAbsence}</span>
             </Link>
 
             <Link
@@ -284,7 +298,7 @@ export function PublicDashboardClient({
               className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 shadow-sm transition hover:bg-slate-100 sm:text-sm dark:border-slate-700 dark:bg-navy-800 dark:text-slate-200 dark:hover:bg-navy-700"
             >
               <FileText className="h-4 w-4 text-slate-500 dark:text-slate-400" />
-              <span>Report</span>
+              <span>{t.navReport}</span>
             </Link>
 
             <Link
@@ -292,7 +306,7 @@ export function PublicDashboardClient({
               className="inline-flex items-center gap-1.5 rounded-xl bg-indigo-600 px-3.5 py-2 text-xs font-semibold text-white shadow-sm transition hover:bg-indigo-500 sm:text-sm"
             >
               <MonitorPlay className="h-4 w-4" />
-              <span>TV Mode</span>
+              <span>{t.navTvMode}</span>
             </Link>
 
             {sessionUser ? (
@@ -303,7 +317,7 @@ export function PublicDashboardClient({
                     className="inline-flex items-center gap-1.5 rounded-xl bg-navy-800 px-3.5 py-2 text-xs font-semibold text-white shadow-sm transition hover:bg-navy-700 sm:text-sm dark:bg-blue-600 dark:hover:bg-blue-500"
                   >
                     <ShieldCheck className="h-4 w-4" />
-                    <span>Admin</span>
+                    <span>{t.navAdmin}</span>
                   </Link>
                 )}
                 <Link
@@ -335,18 +349,19 @@ export function PublicDashboardClient({
                   className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 shadow-sm transition hover:bg-slate-100 sm:text-sm dark:border-slate-700 dark:bg-navy-800 dark:text-slate-200 dark:hover:bg-navy-700"
                 >
                   <UserPlus className="h-4 w-4" />
-                  <span>Register</span>
+                  <span>{t.navRegister}</span>
                 </Link>
                 <Link
                   href="/login"
                   className="inline-flex items-center gap-1.5 rounded-xl bg-navy-800 px-3.5 py-2 text-xs font-semibold text-white shadow-sm transition hover:bg-navy-700 sm:text-sm dark:bg-blue-600 dark:hover:bg-blue-500"
                 >
                   <LogIn className="h-4 w-4" />
-                  <span>Log In</span>
+                  <span>{t.navLogIn}</span>
                 </Link>
               </>
             )}
 
+            <LanguageToggle />
             <ThemeToggle />
           </div>
         </div>

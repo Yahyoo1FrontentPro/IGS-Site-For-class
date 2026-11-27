@@ -14,6 +14,7 @@ import {
 import { ClassSchedule, SessionUser } from "@/types";
 import { DAYS_OF_WEEK, getCurrentDayOfWeek } from "@/lib/calculations";
 import { ThemeToggle } from "@/components/ThemeToggle";
+import { LanguageToggle } from "@/components/LanguageToggle";
 import { useHideOnMobileScroll } from "@/lib/useHideOnMobileScroll";
 
 interface ScheduleViewerProps {
@@ -246,7 +247,10 @@ export function ScheduleViewer({
             <ArrowLeft className="h-4 w-4" />
             Back to Activity Hub
           </Link>
-          <ThemeToggle />
+          <div className="flex items-center gap-2">
+            <LanguageToggle />
+            <ThemeToggle />
+          </div>
         </div>
       </header>
 

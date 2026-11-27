@@ -1,7 +1,12 @@
 import { getSessionUser } from "@/lib/auth";
 import { fetchAllAbsences } from "@/lib/absences";
 import { getElectionState } from "@/lib/elections";
+import { fetchAllHomework } from "@/lib/homework";
 import { readLocalStore, toUserSummary } from "@/lib/local-store";
+import {
+  fetchAllLessonIncidents,
+  fetchAllRollCalls,
+} from "@/lib/roll-call";
 import {
   fetchHubDataset,
   getSupabaseAdminClient,
@@ -50,7 +55,11 @@ export default async function AdminPage({
   }
 
   const initialTab =
-    searchParams?.tab === "schedules"
+    searchParams?.tab === "homework"
+      ? "homework"
+      : searchParams?.tab === "rollcall"
+      ? "rollcall"
+      : searchParams?.tab === "schedules"
       ? "schedules"
       : searchParams?.tab === "voting"
       ? "voting"
@@ -60,10 +69,20 @@ export default async function AdminPage({
       ? "manage"
       : "daily";
 
-  const [dataset, initialElection, initialAbsences] = await Promise.all([
+  const [
+    dataset,
+    initialElection,
+    initialAbsences,
+    initialHomework,
+    initialRollCalls,
+    initialIncidents,
+  ] = await Promise.all([
     fetchHubDataset(),
     getElectionState(sessionUser),
     fetchAllAbsences(),
+    fetchAllHomework(),
+    fetchAllRollCalls(),
+    fetchAllLessonIncidents(),
   ]);
 
   return (
@@ -74,6 +93,9 @@ export default async function AdminPage({
       initialTab={initialTab}
       initialElection={initialElection}
       initialAbsences={initialAbsences}
+      initialHomework={initialHomework}
+      initialRollCalls={initialRollCalls}
+      initialIncidents={initialIncidents}
     />
   );
 }

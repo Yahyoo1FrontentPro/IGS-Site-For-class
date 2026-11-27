@@ -58,6 +58,46 @@ export interface AbsenceReport {
   created_at: string;
 }
 
+export type AppLanguage = "en" | "ru";
+
+export type RollCallStatus = "present" | "absent" | "late" | "excused";
+
+export interface RollCallEntry {
+  id: string;
+  roll_date: string;
+  student_id: string;
+  student_name: string;
+  status: RollCallStatus;
+  note: string | null;
+  recorded_by: string | null;
+  created_at: string;
+}
+
+export type LessonIncidentType = "teacher_noshow" | "class_cancelled";
+
+export interface LessonIncident {
+  id: string;
+  incident_date: string;
+  incident_type: LessonIncidentType;
+  subject_name: string;
+  teacher_name: string | null;
+  period_label: string | null;
+  notes: string | null;
+  recorded_by: string | null;
+  created_at: string;
+}
+
+export interface HomeworkAssignment {
+  id: string;
+  subject_name: string;
+  title: string;
+  description: string;
+  due_date: string;
+  link_url: string | null;
+  created_by: string | null;
+  created_at: string;
+}
+
 export interface Student {
   id: string;
   name: string;
