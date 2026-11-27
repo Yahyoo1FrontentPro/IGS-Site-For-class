@@ -28,6 +28,7 @@ import {
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { LanguageToggle } from "@/components/LanguageToggle";
 import { useLanguage } from "@/components/LanguageProvider";
+import { translateDayName } from "@/lib/i18n";
 import { useHideOnMobileScroll } from "@/lib/useHideOnMobileScroll";
 
 interface RulesAndDutyClientProps {
@@ -48,8 +49,12 @@ export function RulesAndDutyClient({
 }: RulesAndDutyClientProps) {
   const [view, setView] = useState<"all" | "rules" | "duty">(initialView);
   const todayWeekday = useMemo(() => getTodayWeekdayName(), []);
-  const { t } = useLanguage();
+  const { lang, t } = useLanguage();
   const hideHeaderOnMobile = useHideOnMobileScroll();
+
+  const rulesMeta = CLASS_RULES_META[lang];
+  const ruleSections = CLASS_RULE_SECTIONS[lang];
+  const dutyMeta = DUTY_ROSTER_META[lang];
 
   return (
     <div className="min-h-screen bg-slate-50 pb-16 dark:bg-navy-950">
@@ -157,18 +162,18 @@ export function RulesAndDutyClient({
             <div className="border-b border-slate-200 bg-gradient-to-r from-navy-900 via-navy-800 to-blue-900 px-6 py-7 text-center text-white sm:px-8">
               <div className="mx-auto mb-3 inline-flex items-center gap-1.5 rounded-full bg-white/15 px-3.5 py-1 text-xs font-bold uppercase tracking-wider text-amber-300 backdrop-blur-sm">
                 <BookOpenCheck className="h-3.5 w-3.5" />
-                Class Rules
+                {t.rulesBadge}
               </div>
               <h2 className="text-2xl font-black tracking-tight sm:text-3xl">
-                {CLASS_RULES_META.title}
+                {rulesMeta.title}
               </h2>
               <p className="mt-2 text-xs font-medium text-blue-100/90 sm:text-sm">
-                {CLASS_RULES_META.subtitle}
+                {rulesMeta.subtitle}
               </p>
             </div>
 
             <div className="grid grid-cols-1 gap-5 p-6 sm:p-8 md:grid-cols-2">
-              {CLASS_RULE_SECTIONS.map((section, idx) => {
+              {ruleSections.map((section, idx) => {
                 const Icon = SECTION_ICONS[idx % SECTION_ICONS.length];
                 return (
                   <div
@@ -219,26 +224,26 @@ export function RulesAndDutyClient({
             <div className="border-b border-slate-200 bg-gradient-to-r from-slate-900 via-navy-900 to-indigo-900 px-6 py-7 text-center text-white sm:px-8">
               <div className="mx-auto mb-3 inline-flex items-center gap-1.5 rounded-full bg-white/15 px-3.5 py-1 text-xs font-bold uppercase tracking-wider text-emerald-300 backdrop-blur-sm">
                 <ClipboardList className="h-3.5 w-3.5" />
-                Students on Duty
+                {t.dutyBadge}
               </div>
               <h2 className="text-2xl font-black tracking-tight sm:text-3xl">
-                {DUTY_ROSTER_META.title}
+                {dutyMeta.title}
               </h2>
               <p className="mt-2 text-xs font-medium text-slate-200/90 sm:text-sm">
-                {DUTY_ROSTER_META.subtitle}
+                {dutyMeta.subtitle}
               </p>
               <div className="mt-4 flex flex-wrap items-center justify-center gap-3 text-xs font-semibold">
                 <span className="inline-flex items-center gap-1.5 rounded-full bg-white/10 px-3 py-1 text-amber-200">
                   <Users className="h-3.5 w-3.5" />
-                  Class Leaders: {DUTY_ROSTER_META.classLeaders}
+                  {t.dutyClassLeaders} {dutyMeta.classLeaders}
                 </span>
                 <span className="inline-flex items-center gap-1.5 rounded-full bg-white/10 px-3 py-1 text-blue-200">
                   <CalendarDays className="h-3.5 w-3.5" />
-                  Term / Period: {DUTY_ROSTER_META.termPeriod}
+                  {t.dutyTermPeriod} {dutyMeta.termPeriod}
                 </span>
                 {todayWeekday && (
                   <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-500/25 px-3 py-1 text-emerald-200 ring-1 ring-emerald-400/40">
-                    Today is {todayWeekday}
+                    {t.dutyTodayIs} {translateDayName(todayWeekday, lang)}
                   </span>
                 )}
               </div>
@@ -255,10 +260,10 @@ export function RulesAndDutyClient({
                   <div key={week.weekNumber} className="space-y-3">
                     <div className="flex items-center justify-between">
                       <h3 className="text-sm font-black uppercase tracking-wider text-navy-900 sm:text-base dark:text-blue-300">
-                        {week.title}
+                        {lang === "ru" ? week.titleRu : week.title}
                       </h3>
                       <span className="rounded-full bg-slate-100 px-3 py-0.5 text-[11px] font-bold text-slate-600 dark:bg-navy-800 dark:text-slate-300">
-                        Monday – Friday
+                        {t.dutyMonFri}
                       </span>
                     </div>
 
@@ -267,13 +272,13 @@ export function RulesAndDutyClient({
                         <thead>
                           <tr className={`${headerBg} text-white`}>
                             <th className="w-40 px-4 py-3 text-xs font-extrabold uppercase tracking-wider">
-                              Day of the Week
+                              {t.dutyColDay}
                             </th>
                             <th className="w-56 px-4 py-3 text-xs font-extrabold uppercase tracking-wider">
-                              Students on Duty
+                              {t.dutyColStudents}
                             </th>
                             <th className="px-4 py-3 text-xs font-extrabold uppercase tracking-wider">
-                              Core Responsibilities
+                              {t.dutyColResp}
                             </th>
                           </tr>
                         </thead>
@@ -291,10 +296,10 @@ export function RulesAndDutyClient({
                               >
                                 <td className="px-4 py-3.5 font-extrabold text-slate-900 dark:text-white">
                                   <div className="flex items-center gap-2">
-                                    <span>{row.day}</span>
+                                    <span>{translateDayName(row.day, lang)}</span>
                                     {isToday && (
                                       <span className="rounded-full bg-emerald-600 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-white">
-                                        Today
+                                        {t.todayTag}
                                       </span>
                                     )}
                                   </div>
@@ -312,7 +317,9 @@ export function RulesAndDutyClient({
                                   </div>
                                 </td>
                                 <td className="px-4 py-3.5 text-xs leading-relaxed text-slate-600 sm:text-sm dark:text-slate-300">
-                                  {row.responsibilities}
+                                  {lang === "ru"
+                                    ? row.responsibilitiesRu
+                                    : row.responsibilities}
                                 </td>
                               </tr>
                             );

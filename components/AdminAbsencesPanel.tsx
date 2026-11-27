@@ -17,6 +17,7 @@ import {
   formatTimestampRelative,
   getTodayDateISO,
 } from "@/lib/calculations";
+import { useLanguage } from "@/components/LanguageProvider";
 
 interface AdminAbsencesPanelProps {
   absences: AbsenceReport[];
@@ -33,6 +34,7 @@ export function AdminAbsencesPanel({
   onAbsencesChange,
   onNotify,
 }: AdminAbsencesPanelProps) {
+  const { t } = useLanguage();
   const [filterStatus, setFilterStatus] = useState<
     "all" | "pending" | "acknowledged"
   >("all");
@@ -133,20 +135,20 @@ export function AdminAbsencesPanel({
             </div>
             <div>
               <h2 className="text-lg font-extrabold text-slate-900 dark:text-white">
-                Student Absence Notifications
+                {t.adminAbsTitle}
               </h2>
               <p className="text-xs text-slate-500 dark:text-slate-400">
-                Students who reported they cannot attend school via the site
+                {t.adminAbsSubtitle}
               </p>
             </div>
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
             <span className="rounded-xl bg-rose-50 px-3 py-1.5 text-xs font-bold text-rose-700 dark:bg-rose-950/60 dark:text-rose-300">
-              Absent Today: {todayCount}
+              {t.adminAbsToday} {todayCount}
             </span>
             <span className="rounded-xl bg-amber-50 px-3 py-1.5 text-xs font-bold text-amber-800 dark:bg-amber-950/60 dark:text-amber-300">
-              Unseen: {pendingCount}
+              {t.adminAbsUnseen} {pendingCount}
             </span>
             <div className="inline-flex rounded-xl border border-slate-200 bg-slate-100 p-1 dark:border-slate-700 dark:bg-navy-950">
               {(["all", "pending", "acknowledged"] as const).map((tab) => (
@@ -154,13 +156,17 @@ export function AdminAbsencesPanel({
                   key={tab}
                   type="button"
                   onClick={() => setFilterStatus(tab)}
-                  className={`rounded-lg px-2.5 py-1 text-xs font-bold capitalize transition ${
+                  className={`rounded-lg px-2.5 py-1 text-xs font-bold transition ${
                     filterStatus === tab
                       ? "bg-white text-navy-900 shadow-sm dark:bg-blue-600 dark:text-white"
                       : "text-slate-600 hover:text-slate-900 dark:text-slate-400"
                   }`}
                 >
-                  {tab === "acknowledged" ? "Seen" : tab}
+                  {tab === "acknowledged"
+                    ? t.adminAbsSeen
+                    : tab === "pending"
+                    ? t.adminAbsPending
+                    : t.adminAbsAll}
                 </button>
               ))}
             </div>
@@ -174,11 +180,10 @@ export function AdminAbsencesPanel({
           <div className="py-12 text-center">
             <CalendarX2 className="mx-auto h-10 w-10 text-slate-300 dark:text-slate-700" />
             <p className="mt-3 text-sm font-bold text-slate-700 dark:text-slate-300">
-              No absence reports in this view
+              {t.adminAbsEmpty}
             </p>
             <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
-              When students log in and click &ldquo;Report Absence&rdquo;, their
-              date and reason will appear here instantly.
+              {t.adminAbsEmptySub}
             </p>
           </div>
         ) : (
@@ -254,8 +259,8 @@ export function AdminAbsencesPanel({
                         <Check className="h-3.5 w-3.5" />
                       )}
                       {report.status === "acknowledged"
-                        ? "Mark Unseen"
-                        : "Mark as Seen"}
+                        ? t.adminAbsMarkUnseen
+                        : t.adminAbsMarkSeen}
                     </button>
 
                     <button

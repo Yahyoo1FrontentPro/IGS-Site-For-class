@@ -1011,7 +1011,7 @@ export function AdminPanelClient({
                     className="mb-1.5 flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400"
                   >
                     <Calendar className="h-3.5 w-3.5" />
-                    Lesson Date
+                    {t.adminLessonDate}
                   </label>
                   <input
                     id="daily-date"
@@ -1028,7 +1028,7 @@ export function AdminPanelClient({
                     className="mb-1.5 flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400"
                   >
                     <BookOpen className="h-3.5 w-3.5" />
-                    Current Lesson / Subject
+                    {t.adminCurrentSubject}
                   </label>
                   <select
                     id="daily-subject"
@@ -1050,14 +1050,14 @@ export function AdminPanelClient({
                     className="mb-1.5 flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400"
                   >
                     <Search className="h-3.5 w-3.5" />
-                    Quick Find Student
+                    {t.adminQuickFind}
                   </label>
                   <input
                     id="student-quick-search"
                     type="text"
                     value={studentSearch}
                     onChange={(e) => setStudentSearch(e.target.value)}
-                    placeholder="Type student name..."
+                    placeholder={t.adminTypeStudent}
                     className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-2.5 text-sm font-medium text-slate-900 placeholder:text-slate-400 focus:border-blue-500 focus:outline-none dark:border-slate-700 dark:bg-navy-950 dark:text-white"
                   />
                 </div>

@@ -374,8 +374,8 @@ export function PublicDashboardClient({
             <span className="inline-flex items-center gap-1.5 rounded-lg bg-blue-50 px-3 py-1 text-xs font-bold text-blue-700 dark:bg-blue-950/60 dark:text-blue-300">
               <Sparkles className="h-3.5 w-3.5" />
               {selectedWeekId === "all"
-                ? "All-Time Solo Standings"
-                : selectedWeekObj?.name ?? "Weekly View"}
+                ? t.dashAllTimeStandings
+                : selectedWeekObj?.name ?? t.dashWeeklyView}
             </span>
             {selectedWeekObj && (
               <span className="text-xs font-medium text-slate-500 dark:text-slate-400">
@@ -389,14 +389,14 @@ export function PublicDashboardClient({
               <strong className="text-slate-800 dark:text-slate-200">
                 {dataset.students.filter((s) => s.is_active).length}
               </strong>{" "}
-              Solo Competitors
+              {t.dashSoloCompetitors}
             </span>
             <span>•</span>
             <span>
               <strong className="text-slate-800 dark:text-slate-200">
                 {weekPointLogs.length}
               </strong>{" "}
-              Activity Logs
+              {t.dashActivityLogs}
             </span>
           </div>
         </div>
@@ -410,36 +410,50 @@ export function PublicDashboardClient({
             <div className="flex items-center gap-2">
               <Trophy className="h-5 w-5 text-amber-500" />
               <h2 className="text-xl font-extrabold tracking-tight text-slate-900 dark:text-white">
-                Live MYP 3 Solo Standings Race
+                {t.dashRaceTitle}
               </h2>
             </div>
             <p className="mt-1 text-xs text-slate-500 sm:text-sm dark:text-slate-400">
-              Every student competes individually based on classroom participation, achievements, and class duty.
+              {t.dashRaceSubtitle}
             </p>
           </div>
 
           {/* Weekly Chocolate Prizes */}
           <div className="mt-5 rounded-2xl border border-amber-200 bg-gradient-to-r from-amber-50 via-orange-50 to-amber-50 p-4 dark:border-amber-800/50 dark:from-amber-950/30 dark:via-orange-950/20 dark:to-amber-950/30">
             <p className="text-xs font-black uppercase tracking-wider text-amber-800 dark:text-amber-300">
-              🍫 Weekly Prizes for the Top 3 Students
+              {t.dashWeeklyPrizesTitle}
             </p>
             <div className="mt-3 grid grid-cols-1 gap-2.5 sm:grid-cols-3">
-              {WEEKLY_PRIZES.map((p) => (
-                <div
-                  key={p.place}
-                  className="flex items-center gap-3 rounded-xl border border-amber-200/80 bg-white/80 px-3.5 py-2.5 dark:border-amber-800/40 dark:bg-navy-900/70"
-                >
-                  <span className="text-2xl">{p.emoji}</span>
-                  <div>
-                    <p className="text-xs font-extrabold text-slate-900 dark:text-white">
-                      {p.label}
-                    </p>
-                    <p className="text-xs font-semibold text-amber-700 dark:text-amber-300">
-                      {p.prize}
-                    </p>
+              {WEEKLY_PRIZES.map((p) => {
+                const localizedLabel =
+                  p.place === 1
+                    ? t.dashPlace1
+                    : p.place === 2
+                    ? t.dashPlace2
+                    : t.dashPlace3;
+                const localizedPrize =
+                  p.place === 1
+                    ? t.dashPrize1
+                    : p.place === 2
+                    ? t.dashPrize2
+                    : t.dashPrize3;
+                return (
+                  <div
+                    key={p.place}
+                    className="flex items-center gap-3 rounded-xl border border-amber-200/80 bg-white/80 px-3.5 py-2.5 dark:border-amber-800/40 dark:bg-navy-900/70"
+                  >
+                    <span className="text-2xl">{p.emoji}</span>
+                    <div>
+                      <p className="text-xs font-extrabold text-slate-900 dark:text-white">
+                        {localizedLabel}
+                      </p>
+                      <p className="text-xs font-semibold text-amber-700 dark:text-amber-300">
+                        {localizedPrize}
+                      </p>
+                    </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </div>
 
@@ -460,6 +474,13 @@ export function PublicDashboardClient({
                   ? "bg-indigo-600 text-white"
                   : "bg-emerald-600 text-white";
 
+              const prizeText =
+                idx === 0
+                  ? t.dashPrize1
+                  : idx === 1
+                  ? t.dashPrize2
+                  : t.dashPrize3;
+
               return (
                 <div
                   key={item.student.id}
@@ -470,10 +491,14 @@ export function PublicDashboardClient({
                       className={`inline-flex items-center gap-1 rounded-lg px-2.5 py-1 text-xs font-black ${pillColors}`}
                     >
                       <Medal className="h-3.5 w-3.5" />#{item.rank}{" "}
-                      {idx === 0 ? "Leader" : idx === 1 ? "2nd Place" : "3rd Place"}
+                      {idx === 0
+                        ? t.dashLeaderTag
+                        : idx === 1
+                        ? t.dashPlace2
+                        : t.dashPlace3}
                     </span>
                     <span className="text-xs font-semibold text-slate-400">
-                      Solo Rank
+                      {t.dashSoloRank}
                     </span>
                   </div>
                   <p className="mt-3 text-xl font-black text-slate-900 dark:text-white">
@@ -484,7 +509,7 @@ export function PublicDashboardClient({
                       {item.totalPoints}
                     </span>
                     <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">
-                      points
+                      {t.dashPoints}
                     </span>
                   </div>
                   <p className="mt-2 text-[11px] text-slate-500 dark:text-slate-400">
@@ -493,7 +518,7 @@ export function PublicDashboardClient({
                   </p>
                   {getPrizeForPlace(idx + 1) && (
                     <p className="mt-3 rounded-lg bg-amber-100/80 px-2.5 py-1.5 text-xs font-bold text-amber-800 dark:bg-amber-950/50 dark:text-amber-300">
-                      🎁 Prize: {getPrizeForPlace(idx + 1)!.prize}
+                      {t.dashPrizeLabel} {prizeText}
                     </p>
                   )}
                 </div>
@@ -522,8 +547,8 @@ export function PublicDashboardClient({
             <Award className="h-5 w-5 text-blue-600 dark:text-blue-400" />
             <h2 className="text-xl font-extrabold tracking-tight text-slate-900 dark:text-white">
               {selectedWeekId === "all"
-                ? "All-Time Solo Honors & Subject Champions"
-                : "Weekly Solo Honors & Subject Champions"}
+                ? t.dashAllTimeHonors
+                : t.dashWeeklyHonors}
             </h2>
           </div>
 
@@ -533,7 +558,7 @@ export function PublicDashboardClient({
               <div className="flex items-center justify-between">
                 <span className="inline-flex items-center gap-1.5 rounded-full bg-amber-100 px-3 py-1 text-xs font-bold text-amber-800 dark:bg-amber-900/60 dark:text-amber-300">
                   <Crown className="h-3.5 w-3.5" />
-                  Overall Solo MVP
+                  {t.dashMvpBadge}
                 </span>
                 <Star className="h-5 w-5 text-amber-500" />
               </div>
@@ -547,18 +572,16 @@ export function PublicDashboardClient({
                       {mvp.totalPoints}
                     </span>
                     <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">
-                      total points across all subjects
+                      {t.dashMvpSub}
                     </span>
                   </div>
                 </div>
               ) : (
                 <div className="mt-5 text-sm text-slate-500 dark:text-slate-400">
                   <p className="font-semibold text-slate-700 dark:text-slate-300">
-                    Awaiting first points
+                    {t.dashMvpEmptyTitle}
                   </p>
-                  <p className="mt-1 text-xs">
-                    The highest-scoring student of the week is automatically crowned here.
-                  </p>
+                  <p className="mt-1 text-xs">{t.dashMvpEmptyDesc}</p>
                 </div>
               )}
             </div>
@@ -568,7 +591,7 @@ export function PublicDashboardClient({
               <div className="flex items-center justify-between">
                 <span className="inline-flex items-center gap-1.5 rounded-full bg-blue-100 px-3 py-1 text-xs font-bold text-blue-800 dark:bg-blue-900/60 dark:text-blue-300">
                   <Trophy className="h-3.5 w-3.5" />
-                  Most Active Student
+                  {t.dashMostActiveBadge}
                 </span>
                 <Medal className="h-5 w-5 text-blue-500" />
               </div>
@@ -582,18 +605,16 @@ export function PublicDashboardClient({
                       {topActiveStudent.count}
                     </span>
                     <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">
-                      positive contributions logged
+                      {t.dashMostActiveSub}
                     </span>
                   </div>
                 </div>
               ) : (
                 <div className="mt-5 text-sm text-slate-500 dark:text-slate-400">
                   <p className="font-semibold text-slate-700 dark:text-slate-300">
-                    Ready for participation
+                    {t.dashMostActiveEmptyTitle}
                   </p>
-                  <p className="mt-1 text-xs">
-                    Recognizes the student with the highest number of positive class contributions.
-                  </p>
+                  <p className="mt-1 text-xs">{t.dashMostActiveEmptyDesc}</p>
                 </div>
               )}
             </div>
@@ -603,7 +624,7 @@ export function PublicDashboardClient({
               <div className="flex items-center justify-between">
                 <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-100 px-3 py-1 text-xs font-bold text-emerald-800 dark:bg-emerald-900/60 dark:text-emerald-300">
                   <TrendingUp className="h-3.5 w-3.5" />
-                  Most Improved
+                  {t.dashMostImprovedBadge}
                 </span>
                 <Sparkles className="h-5 w-5 text-emerald-500" />
               </div>
@@ -611,10 +632,10 @@ export function PublicDashboardClient({
               {!mostImproved.hasPreviousWeek ? (
                 <div className="mt-5 text-sm text-slate-500 dark:text-slate-400">
                   <p className="font-semibold text-slate-700 dark:text-slate-300">
-                    Baseline Week in Progress
+                    {t.dashBaselineTitle}
                   </p>
                   <p className="mt-1 text-xs leading-relaxed">
-                    Starting in <strong>Week 2</strong>, this honor automatically highlights the student with the biggest score jump!
+                    {t.dashBaselineDesc}
                   </p>
                 </div>
               ) : mostImproved.student ? (
@@ -624,7 +645,7 @@ export function PublicDashboardClient({
                   </p>
                   <div className="mt-3 flex items-baseline gap-2">
                     <span className="text-3xl font-black text-emerald-600 dark:text-emerald-400">
-                      +{mostImproved.delta} pts
+                      +{mostImproved.delta} {t.dashPts}
                     </span>
                     <span className="text-xs text-slate-500 dark:text-slate-400">
                       ({mostImproved.previousPoints} → {mostImproved.currentPoints} vs{" "}
@@ -635,10 +656,10 @@ export function PublicDashboardClient({
               ) : (
                 <div className="mt-5 text-sm text-slate-500 dark:text-slate-400">
                   <p className="font-semibold text-slate-700 dark:text-slate-300">
-                    Comparing vs {mostImproved.previousWeekName}
+                    {t.dashComparingVs} {mostImproved.previousWeekName}
                   </p>
                   <p className="mt-1 text-xs leading-relaxed">
-                    As students surpass their {mostImproved.previousWeekName} total, the biggest positive jump will appear here.
+                    {t.dashComparingDesc}
                   </p>
                 </div>
               )}
@@ -649,7 +670,7 @@ export function PublicDashboardClient({
           <div>
             <h3 className="mb-3 flex items-center gap-2 text-sm font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
               <BookOpen className="h-4 w-4" />
-              IB MYP 3 Subject Champions
+              {t.dashSubjectChampsTitle}
             </h3>
             <div className="grid grid-cols-1 gap-3.5 sm:grid-cols-2 lg:grid-cols-4">
               {subjectChampions.map((champ) => (
@@ -664,7 +685,7 @@ export function PublicDashboardClient({
                       </span>
                       {champ.points > 0 && (
                         <span className="text-xs font-extrabold text-blue-600 dark:text-blue-400">
-                          {champ.points} pts
+                          {champ.points} {t.dashPts}
                         </span>
                       )}
                     </div>
@@ -682,7 +703,7 @@ export function PublicDashboardClient({
                           </p>
                           {champ.tiedCount > 1 && (
                             <p className="text-[11px] text-slate-500">
-                              +{champ.tiedCount - 1} tied
+                              +{champ.tiedCount - 1} {t.dashTied}
                             </p>
                           )}
                         </div>
@@ -690,7 +711,7 @@ export function PublicDashboardClient({
                       </div>
                     ) : (
                       <p className="text-xs italic text-slate-400 dark:text-slate-500">
-                        No points logged yet
+                        {t.dashNoPointsYet}
                       </p>
                     )}
                   </div>
@@ -708,14 +729,14 @@ export function PublicDashboardClient({
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <div>
                   <h2 className="text-lg font-extrabold text-slate-900 dark:text-white">
-                    Full Class Solo Leaderboard
+                    {t.dashLeaderboardTitle}
                   </h2>
                   <p className="text-xs text-slate-500 dark:text-slate-400">
-                    Filter by subject or search any classmate.
+                    {t.dashLeaderboardSub}
                   </p>
                 </div>
                 <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-600 dark:bg-navy-800 dark:text-slate-300">
-                  {filteredLeaderboard.length} students
+                  {filteredLeaderboard.length} {t.dashStudentsCount}
                 </span>
               </div>
 
@@ -726,7 +747,7 @@ export function PublicDashboardClient({
                     type="text"
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
-                    placeholder="Search student..."
+                    placeholder={t.dashSearchStudent}
                     className="w-full rounded-xl border border-slate-200 bg-slate-50 py-2 pl-9 pr-3 text-xs font-medium text-slate-800 placeholder:text-slate-400 focus:border-blue-500 focus:outline-none dark:border-slate-700 dark:bg-navy-950 dark:text-slate-100"
                   />
                 </div>
@@ -739,7 +760,7 @@ export function PublicDashboardClient({
                     onChange={(e) => setSelectedSubjectFilter(e.target.value)}
                     className="w-full rounded-xl border border-slate-200 bg-slate-50 py-2 pl-9 pr-3 text-xs font-semibold text-slate-800 focus:border-blue-500 focus:outline-none dark:border-slate-700 dark:bg-navy-950 dark:text-slate-100"
                   >
-                    <option value="all">All Subjects</option>
+                    <option value="all">{t.dashAllSubjects}</option>
                     {visibleSubjects.map((s) => (
                       <option key={s.id} value={s.id}>
                         {s.name}
@@ -754,10 +775,10 @@ export function PublicDashboardClient({
               <table className="w-full min-w-[480px] text-left text-sm">
                 <thead>
                   <tr className="border-b border-slate-200 text-[11px] font-bold uppercase tracking-wider text-slate-400 dark:border-slate-800">
-                    <th className="py-3 pr-3">Rank</th>
-                    <th className="py-3 px-3">Student</th>
-                    <th className="py-3 px-3">Breakdown</th>
-                    <th className="py-3 pl-3 text-right">Points</th>
+                    <th className="py-3 pr-3">{t.dashColRank}</th>
+                    <th className="py-3 px-3">{t.dashColStudent}</th>
+                    <th className="py-3 px-3">{t.dashColBreakdown}</th>
+                    <th className="py-3 pl-3 text-right">{t.dashColPoints}</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 dark:divide-slate-800/70">
@@ -839,7 +860,7 @@ export function PublicDashboardClient({
                         colSpan={4}
                         className="py-8 text-center text-sm text-slate-400"
                       >
-                        No students match the current filter.
+                        {t.dashNoStudentsMatch}
                       </td>
                     </tr>
                   )}
@@ -852,10 +873,10 @@ export function PublicDashboardClient({
           <section className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6 dark:border-slate-800 dark:bg-navy-900">
             <div className="border-b border-slate-100 pb-4 dark:border-slate-800">
               <h2 className="text-lg font-extrabold text-slate-900 dark:text-white">
-                Recent Activity Feed
+                {t.dashActivityTitle}
               </h2>
               <p className="text-xs text-slate-500 dark:text-slate-400">
-                100% transparent log of solo points awarded.
+                {t.dashActivitySub}
               </p>
             </div>
 
@@ -864,10 +885,10 @@ export function PublicDashboardClient({
                 <div className="rounded-2xl border border-dashed border-slate-200 p-8 text-center dark:border-slate-800">
                   <Sparkles className="mx-auto h-7 w-7 text-slate-300 dark:text-slate-600" />
                   <p className="mt-2 text-sm font-semibold text-slate-600 dark:text-slate-300">
-                    No activity logged yet
+                    {t.dashActivityEmptyTitle}
                   </p>
                   <p className="mt-1 text-xs text-slate-400">
-                    Points awarded by Class Leaders Yahyo &amp; Fazliya will appear here in real time.
+                    {t.dashActivityEmptyDesc}
                   </p>
                 </div>
               ) : (
@@ -889,7 +910,7 @@ export function PublicDashboardClient({
                           </p>
                           {item.reason && (
                             <p className="mt-1 rounded-lg bg-white/80 px-2 py-1 text-[11px] italic text-slate-600 dark:bg-navy-900 dark:text-slate-400">
-                              Reason: &ldquo;{item.reason}&rdquo;
+                              {t.dashReasonLabel} &ldquo;{item.reason}&rdquo;
                             </p>
                           )}
                         </div>

@@ -15,6 +15,7 @@ import {
   Users,
 } from "lucide-react";
 import { AppUserSummary, SessionUser, UserRole } from "@/types";
+import { useLanguage } from "@/components/LanguageProvider";
 
 interface AdminRolesPanelProps {
   currentUser: SessionUser;
@@ -53,6 +54,7 @@ export function AdminRolesPanel({
   onResetPassword,
   onNotify,
 }: AdminRolesPanelProps) {
+  const { t } = useLanguage();
   // Form A: Assign role & title to existing account
   const [selectedUserId, setSelectedUserId] = useState<string>(
     () => appUsers[0]?.id ?? ""
@@ -244,11 +246,10 @@ export function AdminRolesPanel({
           </div>
           <div>
             <h2 className="text-lg font-extrabold text-slate-900 dark:text-white">
-              Role Assignment, Co-Admins &amp; Accounts
+              {t.rolesTitle}
             </h2>
             <p className="text-xs text-slate-500 dark:text-slate-400">
-              Appoint additional admins, define custom titles (e.g. Co-Leader,
-              Duty Manager), or add brand-new users.
+              {t.rolesSubtitle}
             </p>
           </div>
         </div>
